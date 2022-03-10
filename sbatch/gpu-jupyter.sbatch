@@ -1,12 +1,15 @@
 #!/bin/bash
 
 #SBATCH --nodes=1
+#SBATCH --job-name=gpu-jupyter
+#SBATCH --output=./out/gpu-jupyter_%j.out
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32GB
-#SBATCH --time=5:00:00
+#SBATCH --mem=16GB
+#SBATCH --time=6:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --requeue
 
+echo "This script should be run from the top-level of the ood-generalization repo"
 
 port=$(shuf -i 10000-65500 -n 1)
 
@@ -58,7 +61,33 @@ if [ -e /dev/nvidia0 ]; then nv="--nv"; fi
 module purge
 module load anaconda3/2020.07
 eval "$(conda shell.bash hook)"
-conda activate dls
-jupyter-lab --no-browser --port $port --notebook-dir=$(pwd)
+
+singularity exec --nv \
+	--overlay /scratch/wz727/chestXR/data/mimic-cxr.sqsh:ro \
+	--overlay /scratch/lhz209/data/chexpert.sqf:ro \
+	--overlay /scratch/lhz209/data/padchest.sqf:ro \
+	--overlay /scratch/wz727/chestXR/data/chestxray8.sqsh  \
+    --overlay /scratch/lhz209/pytorch1.7.0-cuda11.0.ext3:ro \
+	/scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif \
+	/bin/bash -c "
+source /ext3/env.sh
+conda activate thesis
+jupyter-lab --no-browser --port $port --notebook-dir=/scratch/rc4499/thesis
 "
 
+# singularity exec --nv \
+# 	--overlay /scratch/wz727/chestXR/data/mimic-cxr.sqsh:ro \
+# 	--overlay /scratch/lhz209/data/chexpert.sqf:ro \
+# 	--overlay /scratch/lhz209/data/padchest.sqf:ro \
+# 	--overlay /scratch/wz727/chestXR/data/chestxray8.sqsh  \
+# 	/scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif \
+# 	bash
+
+# singularity exec $nv \
+# 	    --overlay overlay-50G-10M.ext3:ro \
+#             /share/apps/images/cuda11.1.1-cudnn8-devel-ubuntu20.04.sif \
+# 	    /bin/bash -c "
+# source /ext3/env.sh
+# conda activate ml4h
+# jupyter-lab --no-browser --port $port --notebook-dir=$(pwd)
+# "
