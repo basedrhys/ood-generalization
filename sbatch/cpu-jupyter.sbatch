@@ -1,10 +1,13 @@
 #!/bin/bash
 
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
-#SBATCH --time=12:00:00
-#SBATCH --requeue
+#SBATCH --job-name=cpu-jupyter
+#SBATCH --output=./out/cpu-jupyter_%j.out
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8GB
+#SBATCH --time=6:00:00
 
+echo "This script should be run from the top-level of the ood-generalization repo"
 
 port=$(shuf -i 10000-65500 -n 1)
 
@@ -56,6 +59,16 @@ if [ -e /dev/nvidia0 ]; then nv="--nv"; fi
 module purge
 module load anaconda3/2020.07
 eval "$(conda shell.bash hook)"
-conda activate dls
-jupyter-lab --no-browser --port $port --notebook-dir=$(pwd)
 
+singularity exec --nv \
+	--overlay /scratch/wz727/chestXR/data/mimic-cxr.sqsh:ro \
+	--overlay /scratch/lhz209/data/chexpert.sqf:ro \
+	--overlay /scratch/lhz209/data/padchest.sqf:ro \
+	--overlay /scratch/wz727/chestXR/data/chestxray8.sqsh:ro  \
+    --overlay /scratch/lhz209/pytorch1.7.0-cuda11.0.ext3:ro \
+	/scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif \
+	/bin/bash -c "
+source /ext3/env.sh
+conda activate thesis
+jupyter-lab --no-browser --port $port --notebook-dir=/scratch/rc4499/thesis
+"
