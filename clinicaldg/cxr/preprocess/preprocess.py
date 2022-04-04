@@ -60,16 +60,27 @@ def preprocess_pad():
 
 
 def preprocess_cxp():
-    # img_dir = Path(Constants.image_paths['CXP'])
-    meta_dir = Path(Constants.meta_paths['CXP'])
-    out_folder = meta_dir/'clinicaldg'
+    img_dir = Path(Constants.image_paths['CXP'])
+    out_folder = img_dir/'clinicaldg'
+    if (img_dir/'CheXpert-v1.0'/'train.csv').is_file():
+        df = pd.concat([pd.read_csv(img_dir/'CheXpert-v1.0'/'train.csv'), 
+                        pd.read_csv(img_dir/'CheXpert-v1.0'/'valid.csv')],
+                        ignore_index = True)
+    elif (img_dir/'CheXpert-v1.0-small'/'train.csv').is_file(): 
+        df = pd.concat([pd.read_csv(img_dir/'CheXpert-v1.0-small'/'train.csv'),
+                        pd.read_csv(img_dir/'CheXpert-v1.0-small'/'valid.csv')],
+                        ignore_index = True)
+    elif (img_dir/'train.csv').is_file():
+        raise ValueError('Please set Constants.image_paths["CXP"] to be the PARENT of the current'+
+                ' directory and rerun this script.')
+    else:
+        raise ValueError("CheXpert files not found!")
+
     out_folder.mkdir(parents = True, exist_ok = True)  
-    df = pd.read_csv(meta_dir/"map.csv")
 
     df['subject_id'] = df['Path'].apply(lambda x: int(Path(x).parent.parent.name[7:]))
     df['Path'] = df['Path'].apply(lambda x: str(x).replace("CheXpert-v1.0/", ""))
     df.reset_index(drop = True).to_csv(out_folder/"preprocessed.csv", index=False)
-
 
 def preprocess_nih():
     # img_dir = Path(Constants.image_paths['NIH'])
