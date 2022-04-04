@@ -2,19 +2,26 @@ import os
 
 #-------------------------------------------
 image_paths = {
-    'MIMIC': '/scratch/hdd001/projects/ml4h/projects/mimic_access_required/MIMIC-CXR-JPG', # MIMIC-CXR
-    'CXP': '/scratch/hdd001/projects/ml4h/projects/CheXpert/', # CheXpert
-    'NIH': '/scratch/hdd001/projects/ml4h/projects/NIH/', # ChestX-ray8
-    'PAD': '/scratch/hdd001/projects/ml4h/projects/padchest/PADCHEST/', # PadChest
+    'MIMIC': '/mimic-cxr', # MIMIC-CXR
+    'CXP': '/CheXpert-v1.0', # CheXpert
+    'NIH': '/chestxray8', # ChestX-ray8
+    'PAD': '/padchest', # PadChest
 }
 
-cache_dir = '/scratch/ssd001/home/haoran/projects/IRM_Clinical/cache'
+meta_paths = {
+    'MIMIC': '/scratch/rc4499/thesis/data/mimic-cxr', # MIMIC-CXR
+    'CXP': '/scratch/rc4499/thesis/data/chexpert', # CheXpert
+    'NIH': '/scratch/rc4499/thesis/data/chestxray8', # ChestX-ray8
+    'PAD': '/scratch/rc4499/thesis/data/padchest', # PadChest
+}
+
+cache_dir = '/scratch/rc4499/thesis/cache'
 
 #-------------------------------------------
 
 df_paths = {
-    dataset: os.path.join(image_paths[dataset], 'clinicaldg', f'preprocessed.csv')
-    for dataset in image_paths 
+    dataset: os.path.join(meta_paths[dataset], 'clinicaldg', f'preprocessed.csv')
+    for dataset in meta_paths 
 }
 
 take_labels = ['No Finding', 'Atelectasis', 'Cardiomegaly',  'Effusion',  'Pneumonia', 'Pneumothorax', 'Consolidation','Edema' ]

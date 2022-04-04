@@ -6,9 +6,9 @@ import clinicaldg.eicu.Constants as Constants
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from torch.utils.data import ConcatDataset, Dataset
 
-hospitals = pd.read_csv((Constants.eicu_dir/'hospital.csv'))
-hospitals['region'] = hospitals['region'].fillna('Missing')
-patients = pd.read_csv((Constants.eicu_dir/'patient.csv'))[['patientunitstayid', 'hospitalid',  'gender']]
+# hospitals = pd.read_csv((Constants.eicu_dir/'hospital.csv'))
+# hospitals['region'] = hospitals['region'].fillna('Missing')
+# patients = pd.read_csv((Constants.eicu_dir/'patient.csv'))[['patientunitstayid', 'hospitalid',  'gender']]
 
 class LabelEncoderExt(object):
     '''

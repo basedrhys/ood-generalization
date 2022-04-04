@@ -21,6 +21,8 @@ import clinicaldg.cxr.process as cxrProcess
 from clinicaldg.scripts.download import mnist_dir
 from sklearn.metrics import roc_auc_score, accuracy_score, recall_score, f1_score, confusion_matrix, precision_score, matthews_corrcoef
 
+from tqdm import tqdm
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 DATASETS = [
@@ -240,7 +242,7 @@ class CXRBase():
     def predict_on_set(self, algorithm, loader, device):
         preds, targets, genders = [], [], []
         with torch.no_grad():
-            for x, y, meta in loader:
+            for x, y, meta in tqdm(loader):
                 x = misc.to_device(x, device)
                 algorithm.eval()
                 logits = algorithm.predict(x)

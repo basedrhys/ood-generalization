@@ -10,6 +10,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
+        self.step = 0
 
     def __call__(self, val_loss, step, state_dict, path):  # lower loss is better
         score = -val_loss 

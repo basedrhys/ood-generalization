@@ -120,3 +120,103 @@ class AllDatasetsShared(Dataset):
 
     def __len__(self):
         return self.dataset_size
+
+
+
+"""
+Constructor
+ # self.input_transform = T.Compose([
+        #                             T.Resize((224, 224)),
+        #                             T.ToTensor(),
+        #                             T.Lambda(lambda x: x.repeat(3,1,1) if x.shape[0] == 1 else x),
+        #                             T.Normalize(Constants.IMAGENET_MEAN, Constants.IMAGENET_STD)
+        #                             ])
+
+        self.paths = self.dataframe["path"]
+        self.dataframe["Pneumonia"] = self.dataframe["Pneumonia"].fillna(0).astype(int)
+        self.labels = self.dataframe["Pneumonia"]
+
+        # self.num_paths = 2000
+        # print("Total random paths:", self.num_paths)
+        # self.rand_paths = self.dataframe.sample(n=self.num_paths, random_state=int(time.time()))["path"]
+        # self.rand_paths = self.dataframe.head(self.num_paths)["path"]
+        # print(self.rand_paths.iloc[0])
+        # self.path_i = 0
+        # self.dataframe.head(self.num_paths).to_csv(f"/scratch/rc4499/thesis/ood-generalization/csv/{time.time()}.csv", index=False)
+
+
+item = self.dataframe.iloc[idx]
+# cache_path = self.get_cache_path(self.cache_dir, item)
+
+# img = Image.open(self.paths.iloc[idx])
+
+# Random - proper indexed
+# this_path = self.rand_paths.iloc[idx % self.num_paths]
+# assert "/scratch/rc4499/thesis/ood-generalization/head" in this_path
+# img = Image.open(this_path)
+
+# # Random - iterative index
+# img = Image.open(self.rand_paths.iloc[self.path_i])
+# self.path_i = (self.path_i + 1) % self.num_paths
+# print(self.path_i, self.rand_paths.iloc[self.path_i], idx)
+
+# Fake image
+# img = item["path"]
+# Actual image
+img = Image.open(self.paths.iloc[idx])
+# img = Image.open(item["path"])
+# Single chexpert
+# img = Image.open("/CheXpert-v1.0/train/patient05320/study1/view1_frontal.jpg")
+# img = Image.open("/CheXpert-v1.0/train/patient55319/study3/view1_frontal.jpg")
+# img = Image.open("/scratch/rc4499/thesis/ood-generalization/cxr_small.jpg")
+# img = Image.open("/scratch/rc4499/thesis/ood-generalization/688a78f7-e2bec3a2-d44e1948-c627a046-195d5b10.jpg")
+
+img = self.transform(img)
+
+# label = int(item["Pneumonia"])
+label = int(self.labels.iloc[idx])
+
+return img, label, {}
+
+# if self.cache and cache_path.is_file():
+#     img, label, meta = pickle.load(cache_path.open('rb'))
+#     meta = item.to_dict()
+# else:            
+#     img = np.array(Image.open(item["path"]))
+
+#     if img.dtype == 'int32':
+#         img = np.uint8(img/(2**16)*255)
+#     elif img.dtype == 'bool':
+#         img = np.uint8(img)
+#     else: #uint8
+#         pass
+
+    # if len(img.shape) == 2:
+    #     img = img[:, :, np.newaxis]
+    #     img = np.concatenate([img, img, img], axis=2)            
+    # elif len(img.shape)>2:
+    #     img = img[:,:,0]
+    #     img = img[:, :, np.newaxis]
+    #     img = np.concatenate([img, img, img], axis=2) 
+
+#     img = Image.fromarray(img)
+#     resize_transform = transforms.Resize(size = [224, 224])            
+#     img = transforms.Compose([resize_transform])(img)            
+#     label = torch.FloatTensor(np.zeros(len(Constants.take_labels), dtype=float))
+#     for i in range(0, len(Constants.take_labels)):
+#         if (self.dataframe[Constants.take_labels[i].strip()].iloc[idx].astype('float') > 0):
+#             label[i] = self.dataframe[Constants.take_labels[i].strip()].iloc[idx].astype('float')
+
+#     meta = item.to_dict()
+    
+#     if self.cache:
+#         pickle.dump((img, label, meta), cache_path.open('wb'))
+
+# if self.transform is not None: # apply image augmentations after caching
+#     img = self.transform(img)
+
+# if self.subset_label:
+#     label = int(label[Constants.take_labels.index(self.subset_label)])
+
+# return img, label, meta
+"""

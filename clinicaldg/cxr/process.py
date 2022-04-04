@@ -103,7 +103,7 @@ def process_PAD(split, only_frontal):
     })
     
     split.loc[~split['Sex'].isin(['M', 'F', 'O']), 'Sex'] = 'O'
-    split['path'] =  split['ImageID'].astype(str).apply(lambda x: os.path.join(Constants.image_paths['PAD'], 'images-224', x))
+    split['path'] =  split['ImageID'].astype(str).apply(lambda x: os.path.join(Constants.image_paths['PAD'], x))
     if only_frontal:
         split = split[split['frontal']]
     split['env'] = 'PAD'

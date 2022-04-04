@@ -11,30 +11,32 @@ import random
 from clinicaldg.cxr.preprocess.validate import validate_all
 
 def preprocess_mimic():
-    img_dir = Path(Constants.image_paths['MIMIC'])
-    out_folder = img_dir/'clinicaldg'
+    # img_dir = Path(Constants.image_paths['MIMIC'])
+    meta_dir = Path(Constants.meta_paths['MIMIC'])
+    out_folder = meta_dir/'clinicaldg'
     out_folder.mkdir(parents = True, exist_ok = True)  
 
-    patients = pd.read_csv(img_dir/'patients.csv.gz')
-    labels = pd.read_csv(img_dir/'mimic-cxr-2.0.0-negbio.csv.gz')
-    meta = pd.read_csv(img_dir/'mimic-cxr-2.0.0-metadata.csv.gz')
+    patients = pd.read_csv(meta_dir/'patients.csv')
+    labels = pd.read_csv(meta_dir/'mimic-cxr-2.0.0-negbio.csv')
+    meta = pd.read_csv(meta_dir/'mimic-cxr-2.0.0-metadata.csv')
 
     df = meta.merge(patients, on = 'subject_id').merge(labels, on = ['subject_id', 'study_id'])
     df['age_decile'] = pd.cut(df['anchor_age'], bins = list(range(0, 100, 10))).apply(lambda x: f'{x.left}-{x.right}').astype(str)
     df['frontal'] = df.ViewPosition.isin(['AP', 'PA'])
 
-    df['path'] = df.apply(lambda x: os.path.join('files', f'p{str(x["subject_id"])[:2]}', f'p{x["subject_id"]}', f's{x["study_id"]}', f'{x["dicom_id"]}.jpg'), axis = 1)
+    df['path'] = df.apply(lambda x: os.path.join(f'p{str(x["subject_id"])[:2]}', f'p{x["subject_id"]}', f's{x["study_id"]}', f'{x["dicom_id"]}.jpg'), axis = 1)
     df.to_csv(out_folder/"preprocessed.csv", index=False)
 
 def preprocess_pad():
-    pad_dir = Path(Constants.image_paths['PAD'])
-    out_folder = pad_dir/'clinicaldg'
+    img_dir = Path(Constants.image_paths['PAD'])
+    meta_dir = Path(Constants.meta_paths['PAD'])
+    out_folder = meta_dir/'clinicaldg'
     out_folder.mkdir(parents = True, exist_ok = True)         
 
-    df = pd.read_csv(pad_dir/'PADCHEST_chest_x_ray_images_labels_160K_01.02.19.csv')
+    df = pd.read_csv(meta_dir/'PADCHEST_chest_x_ray_images_labels_160K_01.02.19.csv')
     df = df[['ImageID', 'StudyID', 'PatientID','PatientBirth','PatientSex_DICOM', 'ViewPosition_DICOM', 'Projection','Labels']]
     df = df[~df["Labels"].isnull()]
-    df = df[df["ImageID"].apply(lambda x: os.path.exists(os.path.join(pad_dir, 'images-224', x)))]
+    df = df[df["ImageID"].apply(lambda x: os.path.exists(os.path.join(img_dir, x)))]
     df = df[df.Projection.isin(['PA', 'L', 'AP_horizontal', 'AP'])]
 
     df['frontal'] = ~(df['Projection'] == 'L')
@@ -58,20 +60,23 @@ def preprocess_pad():
 
 
 def preprocess_cxp():
-    img_dir = Path(Constants.image_paths['CXP'])
-    out_folder = img_dir/'clinicaldg'
+    # img_dir = Path(Constants.image_paths['CXP'])
+    meta_dir = Path(Constants.meta_paths['CXP'])
+    out_folder = meta_dir/'clinicaldg'
     out_folder.mkdir(parents = True, exist_ok = True)  
-    df = pd.read_csv(img_dir/"map.csv")
+    df = pd.read_csv(meta_dir/"map.csv")
 
     df['subject_id'] = df['Path'].apply(lambda x: int(Path(x).parent.parent.name[7:]))
+    df['Path'] = df['Path'].apply(lambda x: str(x).replace("CheXpert-v1.0/", ""))
     df.reset_index(drop = True).to_csv(out_folder/"preprocessed.csv", index=False)
 
 
 def preprocess_nih():
-    img_dir = Path(Constants.image_paths['NIH'])
-    out_folder = img_dir/'clinicaldg'
+    # img_dir = Path(Constants.image_paths['NIH'])
+    meta_dir = Path(Constants.meta_paths['NIH'])
+    out_folder = meta_dir/'clinicaldg'
     out_folder.mkdir(parents = True, exist_ok = True)  
-    df = pd.read_csv(img_dir/"Data_Entry_2017.csv")
+    df = pd.read_csv(meta_dir/"Data_Entry_2017.csv")
     df['labels'] = df['Finding Labels'].apply(lambda x: x.split('|'))
 
     for label in Constants.take_labels:

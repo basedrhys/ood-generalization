@@ -14,6 +14,10 @@ import PIL
 import torch
 import torchvision
 import torch.utils.data
+from torch.utils.data.dataloader import DataLoader
+from tqdm import tqdm
+import wandb
+import json
 
 from clinicaldg import datasets
 from clinicaldg import hparams_registry
@@ -29,6 +33,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default="ColoredMNIST")
     parser.add_argument('--algorithm', type=str, default="ERM")
     parser.add_argument('--es_method', choices = ['train', 'val', 'test'])
+    parser.add_argument('--wandb_name', type=str, required=True)
     parser.add_argument('--hparams', type=str,
         help='JSON-serialized hparams dict')
     parser.add_argument('--hparams_seed', type=int, default=0,
@@ -49,6 +54,11 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
+
+    wandb.init(project="ood-generalization", 
+                entity="basedrhys", 
+                config=args,
+                name=args.wandb_name)
 
     print("Environment:")
     print("\tPython: {}".format(sys.version.split(" ")[0]))
@@ -71,6 +81,7 @@ if __name__ == "__main__":
     if args.hparams:
         hparams.update(json.loads(args.hparams))
 
+    wandb.config.update(hparams)
     print('HParams:')
     for k, v in sorted(hparams.items()):
         print('\t{}: {}'.format(k, v))
@@ -130,6 +141,8 @@ if __name__ == "__main__":
     if hasattr(dataset, 'NUM_SAMPLES_VAL'):
         val_ds = torch.utils.data.Subset(val_ds, np.random.choice(np.arange(len(val_ds)), min(dataset.NUM_SAMPLES_VAL, len(val_ds)), replace = False))
 
+    print("Num workers", dataset.N_WORKERS)
+
     eval_loader = FastDataLoader(
         dataset=val_ds,
         batch_size=hparams['batch_size']*4,
@@ -174,8 +187,10 @@ if __name__ == "__main__":
         start_step = 0        
     
     last_results_keys = None
-    for step in range(start_step, n_steps):
+    pbar = tqdm(range(start_step, n_steps))
+    for step in pbar:
         if es.early_stop:
+            print("Earling stopping...")
             break
         step_start_time = time.time()
         minibatches_device = [(misc.to_device(xy[0], device), misc.to_device(xy[1], device))
@@ -184,10 +199,13 @@ if __name__ == "__main__":
         step_vals = algorithm.update(minibatches_device, device)
         checkpoint_vals['step_time'].append(time.time() - step_start_time)
 
+        wandb.log(step_vals)
+        pbar.set_postfix({"loss": step_vals["loss"]})
+
         for key, val in step_vals.items():
             checkpoint_vals[key].append(val)
 
-        if step % checkpoint_freq == 0:
+        if (step % checkpoint_freq == 0) and (step > 1):
             results = {
                 'step': step,
                 'epoch': step / steps_per_epoch,
@@ -198,6 +216,7 @@ if __name__ == "__main__":
 
             # validation
             results.update(dataset.eval_metrics(algorithm, eval_loader, 'es', weights = None, device = device))                        
+            wandb.log(results)                    
                 
             results_keys = sorted(results.keys())
             if results_keys != last_results_keys:
@@ -243,7 +262,9 @@ if __name__ == "__main__":
         final_results.update(dataset.eval_metrics(algorithm, loader, name, weights = None, device = device))
         
     save_dict['test_results'] = final_results    
-        
+    print("Finished final evaluation:")
+    print(json.dumps(save_dict, indent=True))
+    wandb.log(save_dict)
     torch.save(save_dict, os.path.join(args.output_dir, "stats.pkl"))    
 
     with open(os.path.join(args.output_dir, 'done'), 'w') as f:
