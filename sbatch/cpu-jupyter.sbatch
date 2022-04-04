@@ -5,7 +5,7 @@
 #SBATCH --output=./out/cpu-jupyter_%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8GB
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 
 echo "This script should be run from the top-level of the ood-generalization repo"
 
@@ -28,25 +28,6 @@ If you are working in NYU campus, please open an iTerm window, run command
 
 ssh -L $port:localhost:$port $USER@greene.hpc.nyu.edu
 
-If you are working off campus, you should already have ssh tunneling setup through HPC bastion host, 
-that you can directly login to greene with command
-
-ssh $USER@greene
-
-Please open an iTerm window, run command
-
-ssh -L $port:localhost:$port $USER@greene
-
-Step 2:
-
-Keep the iTerm windows in the previouse step open. Now open browser, find the line with
-
-The Jupyter Notebook is running at: $(hostname)
-
-the URL is something: http://localhost:${port}/?token=XXXXXXXX (see your token below)
-
-you should be able to connect to jupyter notebook running remotly on greene compute node with above url
-
 EOF
 
 unset XDG_RUNTIME_DIR
@@ -61,13 +42,13 @@ module load anaconda3/2020.07
 eval "$(conda shell.bash hook)"
 
 singularity exec --nv \
-	--overlay /scratch/wz727/chestXR/data/mimic-cxr.sqsh:ro \
-	--overlay /scratch/lhz209/data/chexpert.sqf:ro \
-	--overlay /scratch/lhz209/data/padchest.sqf:ro \
-	--overlay /scratch/wz727/chestXR/data/chestxray8.sqsh:ro  \
-    --overlay /scratch/lhz209/pytorch1.7.0-cuda11.0.ext3:ro \
+	--overlay /scratch/rc4499/thesis/data/sqf/mimic-cxr-224.sqf:ro \
+	--overlay /scratch/rc4499/thesis/data/sqf/CheXpert-v1.0-224.sqf:ro \
+	--overlay /scratch/rc4499/thesis/data/sqf/padchest-224.sqf:ro \
+	--overlay /scratch/rc4499/thesis/data/sqf/chestxray8-224.sqf:ro  \
+    --overlay /scratch/rc4499/thesis/pytorch1.7.0-cuda11.0.ext3:ro \
 	/scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif \
-	/bin/bash -c "
+	/bin/bash -c -c "
 source /ext3/env.sh
 conda activate thesis
 jupyter-lab --no-browser --port $port --notebook-dir=/scratch/rc4499/thesis

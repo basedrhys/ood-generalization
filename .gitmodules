@@ -1,0 +1,3 @@
+[submodule "ClinicalDG"]
+	path = ClinicalDG
+	url = https://github.com/basedrhys/ClinicalDG.git
