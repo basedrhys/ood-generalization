@@ -96,6 +96,7 @@ def process_PAD(split, only_frontal):
                             [0, 0, 0, 1, 1, "0-20", "20-40", "40-60", "60-80", "80-"])
     
     split.loc[split['Age'] == 0.0, 'Age'] = '0-20'
+    split.loc[split['Age'].isnull(), 'Age'] = '0-20'
     split = split.rename(columns = {
         'PatientID': 'subject_id',
         'StudyID': 'study_id',
