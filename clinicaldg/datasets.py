@@ -203,7 +203,59 @@ class eICUCorrNoise(eICUBase):
         self.d = eicuData.AugmentedDataset([eicuAugmentations.GaussianNoise(hparams['corr_noise_train_corrupt_dist'], hparams['corr_noise_train_corrupt_mean'], 
                                            hparams['corr_noise_val_corrupt'], hparams['corr_noise_test_corrupt'], std = hparams['corr_noise_std'], feat_name = hparams['corr_noise_feature'])], 
                        train_pct = eICUBase.TRAIN_PCT, val_pct = eICUBase.VAL_PCT)          
-        
+
+def get_prop(df, column="Pneumonia"):
+    num_instances = len(df)
+    num_diseased = df[df[column] == 1][column].count()
+    return num_diseased / (num_instances - num_diseased)
+
+def get_resample_class(orig_prop, new_prop, resample_method):
+    if new_prop > orig_prop:
+        if resample_method == "over":
+            return 1
+        else:
+            return 0
+    if new_prop < orig_prop:
+        if resample_method == "under":
+            return 1
+        else:
+            return 0
+
+def balance_proportion(orig_df, new_df, resample_method="over", column="Pneumonia", seed=0):
+    orig_df = orig_df.fillna(0.0)
+    orig_prop = get_prop(orig_df, column)
+    new_prop = get_prop(new_df, column)
+    assert resample_method in ["over", "under"]
+    resample_class = get_resample_class(orig_prop, new_prop, resample_method)
+    print(f"Resampling (with seed {seed}) '{column}' via '{resample_method}' on class {resample_class} from {orig_prop} to {new_prop}")
+    
+    # Estimate the number of items we'll need to resample
+    df_diseased = orig_df[orig_df[column] == 1.0]
+    df_normal = orig_df[orig_df[column] == 0.0]
+    num_diseased = len(df_diseased)
+    num_normal = len(df_normal)
+    assert num_diseased + num_normal == len(orig_df)
+    if resample_method == "over":
+        if resample_class == 0:
+            new_num_normal = int(num_diseased / new_prop)
+            print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
+            df_normal_rs = df_normal.sample(new_num_normal, replace=True, random_state=seed)
+            resampled_df = pd.concat([df_normal_rs, df_diseased])
+        else:
+            # Resample the pneumonia class
+            new_num_diseased = int(new_prop * num_normal)
+            print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
+            df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=seed)
+            resampled_df = pd.concat([df_normal, df_diseased_rs])
+    
+    resampled_df.sort_index(inplace=True)
+    print(f"New df proportion: {get_prop(resampled_df, column)}")
+    return resampled_df
+            
+CXR_RESAMPLE="NONE"
+from os.path import exists
+def img_exists(path):
+    return exists(path)
 
 class CXRBase():
     '''
@@ -213,15 +265,19 @@ class CXRBase():
     '''
     ENVIRONMENTS = ['MIMIC', 'CXP', 'NIH', 'PAD']
     MAX_STEPS = 20000
-    N_WORKERS = 1
+    N_WORKERS = 2
     CHECKPOINT_FREQ = 100
     ES_METRIC = 'roc'
     input_shape = None
-    ES_PATIENCE = 5 #  * checkpoint_freq steps
-    TRAIN_ENVS = ['MIMIC', 'CXP']
-    VAL_ENV = 'NIH'
-    TEST_ENV = 'PAD'    
-    NUM_SAMPLES_VAL = 1024*8 # use a subset of the validation set for early stopping
+    ES_PATIENCE = 20 #  * checkpoint_freq steps
+    # TRAIN_ENVS = ['NIH', 'PAD']
+    # TRAIN_ENVS = ['PAD']
+    # VAL_ENV = 'MIMIC'
+    # TEST_ENV = 'CXP'    
+    # TRAIN_ENVS = ['MIMIC', 'CXP']
+    # VAL_ENV = 'NIH'
+    # TEST_ENV = 'PAD'    
+    # NUM_SAMPLES_VAL = 1024*16 # use a subset of the validation set for early stopping
     
     def __init__(self, hparams, args):
         self.hparams = hparams
@@ -232,12 +288,69 @@ class CXRBase():
         for env in cxrConstants.df_paths:
             func = cxrProcess.get_process_func(env)
             df_env = func(pd.read_csv(cxrConstants.df_paths[env]), only_frontal = True)
+            df_env["img_exists"] = df_env["path"].apply(img_exists)
+            df_env = df_env[df_env["img_exists"]]
             train_df, valid_df, test_df = cxrProcess.split(df_env)
+            print(f"{env} test set indices: {test_df.index[:10]}")
             self.dfs[env] = {
                 'train': train_df,
                 'val': valid_df,
                 'test': test_df
             }
+
+        if args.balance_method == "none":
+            return
+
+        if args.balance_method == "label":
+            print("Beginning label balancing")
+            # Lets balance the label proportion of all training environments to match the test environment
+            test_df = self.dfs[self.TEST_ENV]["test"]
+            for train_env in self.TRAIN_ENVS:
+                train_df = self.dfs[train_env]["train"]
+                print(f"\nBalancing {train_env} to match {self.TEST_ENV}")
+                balanced_train_df = balance_proportion(train_df, test_df, seed=args.seed)
+                self.dfs[train_env]["train"] = balanced_train_df
+        
+        if args.balance_method == "label+size":
+            raise NotImplementedError()
+
+        # # Check all images exist
+
+        # mimic_balanced = self.dfs["MIMIC"]
+        # cxp_balanced = self.dfs["CXP"]
+        # assert CXR_RESAMPLE in ["NONE", "OVER", "UNDER"]
+        # if CXR_RESAMPLE == "UNDER":    
+        #     print("Undersampling...")
+        #     mimic_balanced = balance_df_label(mimic_balanced, RandomUnderSampler, invert=True)
+        #     cxp_balanced = balance_df_label(cxp_balanced, RandomUnderSampler, invert=False)
+
+        #     # Balance the size of the two datasets
+        #     n = len(cxp_balanced)
+        #     mimic_balanced = mimic_balanced.sample(n, random_state=42)
+        # elif CXR_RESAMPLE == "OVER":
+        #     print("Oversampling...")
+        #     mimic_balanced = balance_df_label(mimic_balanced, RandomOverSampler, invert=True)
+        #     cxp_balanced = balance_df_label(cxp_balanced, RandomOverSampler, invert=False)
+
+        #     # Upsample Chexpert to have the same num instances as MIMIC
+        #     n = len(mimic_balanced)
+        #     cxp_balanced = cxp_balanced.sample(n, replace=True, random_state=42)
+            
+        # print("Dataset lengths:", len(mimic_balanced), len(cxp_balanced))
+        # print("Pneumonia props:", get_pneumonia_prop(mimic_balanced), get_pneumonia_prop(cxp_balanced))
+        # self.dfs["MIMIC"] = mimic_balanced
+        # self.dfs["CXP"] = cxp_balanced
+
+        # ## Now go through and make the train,val,test split
+        # for env in cxrConstants.df_paths:
+        #     df_env = self.dfs[env]
+        #     train_df, valid_df, test_df = cxrProcess.split(df_env)
+        #     print(f"{env} test set indices: {test_df.index[:10]}")
+        #     self.dfs[env] = {
+        #         'train': train_df,
+        #         'val': valid_df,
+        #         'test': test_df
+        #     }
 
     def predict_on_set(self, algorithm, loader, device):
         preds, targets, genders = [], [], []

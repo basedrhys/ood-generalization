@@ -30,10 +30,20 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Domain generalization')
-    parser.add_argument('--dataset', type=str, default="ColoredMNIST")
+    parser.add_argument('--dataset', type=str, default="CXRBinary")
     parser.add_argument('--algorithm', type=str, default="ERM")
     parser.add_argument('--es_method', choices = ['train', 'val', 'test'])
     parser.add_argument('--wandb_name', type=str, required=True)
+
+    parser.add_argument('--train_env_0', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
+    # Using string None for easier visualisation in W+B
+    parser.add_argument('--train_env_1', choices = ['MIMIC', 'CXP', 'NIH', 'PAD', 'none'], default='none')
+    parser.add_argument('--val_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
+    parser.add_argument('--test_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
+
+    parser.add_argument('--balance_method', choices = ['none', 'label', 'label+size'], default='none')
+    parser.add_argument('--resample_method', choices = ['over', 'under'], default='over')
+
     parser.add_argument('--hparams', type=str,
         help='JSON-serialized hparams dict')
     parser.add_argument('--hparams_seed', type=int, default=0,
@@ -51,13 +61,16 @@ if __name__ == "__main__":
         help = 'delete model weights after training to save disk space')
     args = parser.parse_args()
 
+    args.output_dir = os.path.join(args.output_dir, args.wandb_name)
+    
     os.makedirs(args.output_dir, exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
-    wandb.init(project="ood-generalization", 
+    wandb.init(project="ood-generalization",
+                job_type="train", 
                 entity="basedrhys", 
-                config=args,
+                config=vars(args),
                 name=args.wandb_name)
 
     print("Environment:")
@@ -97,7 +110,14 @@ if __name__ == "__main__":
     else:
         device = "cpu"
         
-    ds_class = vars(datasets)[args.dataset]                    
+    ds_class = vars(datasets)[args.dataset]  
+    
+    # Parse the train/val/test environments from the args
+    ds_class.TRAIN_ENVS = [args.train_env_0]
+    if args.train_env_1 != 'none':
+        ds_class.TRAIN_ENVS.append(args.train_env_1)
+    ds_class.VAL_ENV = args.val_env
+    ds_class.TEST_ENV = args.test_env
 
     if args.dataset in vars(datasets):
         dataset = ds_class(hparams, args)
@@ -126,7 +146,7 @@ if __name__ == "__main__":
     train_loaders = [InfiniteDataLoader(
         dataset=i,
         weights=None,
-        batch_size=hparams['batch_size'],
+        batch_size=hparams['batch_size'] // len(TRAIN_ENVS), # Want to keep batch size constant
         num_workers=dataset.N_WORKERS)
         for i in train_dss
         ]
@@ -242,6 +262,16 @@ if __name__ == "__main__":
             
             es(-results['es_' + dataset.ES_METRIC], step, algorithm.state_dict(), os.path.join(args.output_dir, "model.pkl"))            
 
+    # print(f"Num instances after training: {algorithm.num_inst}")
+    # print(f"Num positive after training: {algorithm.num_pos}")
+    # print(f"Proportion: {algorithm.num_pos / algorithm.num_inst}")
+
+    # print(f"DS 1 - # Inst: {algorithm.num_inst_1}, # Pos: {algorithm.num_pos_1}, Proportion: {algorithm.num_pos_1 / algorithm.num_inst_1}")
+    # print(f"DS 2 - # Inst: {algorithm.num_inst_2}, # Pos: {algorithm.num_pos_2}, Proportion: {algorithm.num_pos_2 / algorithm.num_inst_2}")
+
+    # wandb.log({"Training Class Proportion": algorithm.num_pos / algorithm.num_inst})
+    # wandb.log({"DS 1 Class Proportion": algorithm.num_pos_1 / algorithm.num_inst_1})
+    # wandb.log({"DS 2 Class Proportion": algorithm.num_pos_2 / algorithm.num_inst_2})
     algorithm.load_state_dict(torch.load(os.path.join(args.output_dir, "model.pkl")))
     algorithm.eval()
     
@@ -265,7 +295,10 @@ if __name__ == "__main__":
     print("Finished final evaluation:")
     print(json.dumps(save_dict, indent=True))
     wandb.log(save_dict)
-    torch.save(save_dict, os.path.join(args.output_dir, "stats.pkl"))    
+    torch.save(save_dict, os.path.join(args.output_dir, "stats.pkl"))
+
+    with open(os.path.join(args.output_dir, "stats.json"), mode="w") as f:
+        json.dump(save_dict, f)    
 
     with open(os.path.join(args.output_dir, 'done'), 'w') as f:
         f.write('done')

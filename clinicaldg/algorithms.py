@@ -76,6 +76,8 @@ class Algorithm(torch.nn.Module):
     def predict(self, x):
         raise NotImplementedError
 
+import wandb
+
 class ERM(Algorithm):
     """
     Empirical Risk Minimization (ERM)
@@ -91,7 +93,17 @@ class ERM(Algorithm):
             self.network.parameters(),
             lr=self.hparams["lr"],
             weight_decay=self.hparams['weight_decay']
-        )       
+        )
+
+        wandb.config.update({"optimizer": type(self.optimizer).__name__})
+
+        print(f"Using optimiser: {self.optimizer}")
+        # self.num_pos_1 = 0
+        # self.num_pos_2 = 0
+        # self.num_inst_1 = 0
+        # self.num_inst_2 = 0
+        # self.num_inst = 0     
+        # self.num_pos = 0  
 
     def update(self, minibatches, device):
         all_x = cat([x for x,y in minibatches])
@@ -101,6 +113,20 @@ class ERM(Algorithm):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        
+        # # Calculate positive for each environment
+        # mid = len(all_y) // 2
+        # inst1 = all_y[:mid]
+        # inst2 = all_y[mid:]
+
+        # self.num_pos_1 += inst1.sum()
+        # self.num_pos_2 += inst2.sum()
+
+        # self.num_inst_1 += len(inst1)
+        # self.num_inst_2 += len(inst2)
+
+        # self.num_inst += len(all_y)
+        # self.num_pos += all_y.sum()
 
         return {'loss': loss.item()}
 

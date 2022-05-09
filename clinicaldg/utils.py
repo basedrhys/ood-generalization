@@ -21,10 +21,11 @@ class EarlyStopping:
             save_model(state_dict, path)
         elif score < self.best_score:
             self.counter += 1
-            # print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
+            print(f"Saving better model with score: {score} at step {step}")
             save_model(state_dict, path)
             self.best_score = score
             self.step = step
