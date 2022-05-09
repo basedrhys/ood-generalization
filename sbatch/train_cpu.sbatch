@@ -1,12 +1,11 @@
 #!/bin/bash
 
 #SBATCH --nodes=1
-#SBATCH --job-name=train
-#SBATCH --output=./out/train_%j.out
-#SBATCH --cpus-per-task=2
+#SBATCH --job-name=train_cpu
+#SBATCH --output=./out/train_cpu_%j.out
+#SBATCH --cpus-per-task=1
 #SBATCH --mem=16GB
-#SBATCH --time=8:00:00
-#SBATCH --gres=gpu:1
+#SBATCH --time=3:00:00
 
 module purge
 module load anaconda3/2020.07
@@ -23,5 +22,5 @@ singularity exec --nv \
 source /ext3/env.sh
 conda activate thesis
 cd /scratch/rc4499/thesis/ood-generalization/ClinicalDG
-bash_scripts/my_cxr.sh train_merged
+bash_scripts/my_cxr.sh dftestss --test
 "

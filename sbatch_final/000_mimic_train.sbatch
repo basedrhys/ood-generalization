@@ -2,11 +2,11 @@
 
 #SBATCH --nodes=1
 #SBATCH --job-name=train
-#SBATCH --output=./out/train_%j.out
+#SBATCH --output=./out/%j-trn_MIMIC.out
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=16GB
-#SBATCH --time=8:00:00
-#SBATCH --gres=gpu:1
+#SBATCH --mem=32GB
+#SBATCH --time=6:00:00
+#SBATCH --gres=gpu:rtx8000:1
 
 module purge
 module load anaconda3/2020.07
@@ -23,5 +23,5 @@ singularity exec --nv \
 source /ext3/env.sh
 conda activate thesis
 cd /scratch/rc4499/thesis/ood-generalization/ClinicalDG
-bash_scripts/my_cxr.sh train_merged
+bash_scripts/my_cxr_param.sh trn_MIMIC MIMIC none NIH PAD none over
 "
