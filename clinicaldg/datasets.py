@@ -249,7 +249,6 @@ def balance_proportion(orig_df, new_df, resample_method="over", column="Pneumoni
             resampled_df = pd.concat([df_normal, df_diseased_rs])
     
     resampled_df.sort_index(inplace=True)
-    print(f"New df proportion: {get_prop(resampled_df, column)}")
     return resampled_df
             
 CXR_RESAMPLE="NONE"
@@ -307,9 +306,18 @@ class CXRBase():
             test_df = self.dfs[self.TEST_ENV]["test"]
             for train_env in self.TRAIN_ENVS:
                 train_df = self.dfs[train_env]["train"]
+                val_df = self.dfs[train_env]["val"]
+
                 print(f"\nBalancing {train_env} to match {self.TEST_ENV}")
                 balanced_train_df = balance_proportion(train_df, test_df, seed=args.seed)
+                balanced_val_df = balance_proportion(val_df, test_df, seed=args.seed)
+                
                 self.dfs[train_env]["train"] = balanced_train_df
+                self.dfs[train_env]["val"] = balanced_val_df
+
+                print(f"New {train_env} train split prop: {get_prop(self.dfs[train_env]['train'])}")
+                print(f"New {train_env} val split prop: {get_prop(self.dfs[train_env]['val'])}")
+
         
         if args.balance_method == "label+size":
             raise NotImplementedError()
