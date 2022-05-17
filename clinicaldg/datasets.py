@@ -20,6 +20,9 @@ import clinicaldg.cxr.Augmentations as cxrAugmentations
 import clinicaldg.cxr.process as cxrProcess
 from clinicaldg.scripts.download import mnist_dir
 from sklearn.metrics import roc_auc_score, accuracy_score, recall_score, f1_score, confusion_matrix, precision_score, matthews_corrcoef
+from imblearn.over_sampling import RandomOverSampler
+import wandb
+import json
 
 from tqdm import tqdm
 
@@ -221,10 +224,9 @@ def get_resample_class(orig_prop, new_prop, resample_method):
         else:
             return 0
 
-def balance_proportion(orig_df, new_df, resample_method="over", column="Pneumonia", seed=0):
+def balance_proportion(orig_df, new_prop, resample_method="over", column="Pneumonia", seed=0):
     orig_df = orig_df.fillna(0.0)
     orig_prop = get_prop(orig_df, column)
-    new_prop = get_prop(new_df, column)
     assert resample_method in ["over", "under"]
     resample_class = get_resample_class(orig_prop, new_prop, resample_method)
     print(f"Resampling (with seed {seed}) '{column}' via '{resample_method}' on class {resample_class} from {orig_prop} to {new_prop}")
@@ -244,14 +246,24 @@ def balance_proportion(orig_df, new_df, resample_method="over", column="Pneumoni
         else:
             # Resample the pneumonia class
             new_num_diseased = int(new_prop * num_normal)
-            print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
-            df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=seed)
+            df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=0)
             resampled_df = pd.concat([df_normal, df_diseased_rs])
+            print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
+            # print("Using imblearn random over sampler")
+            # target = orig_df["Pneumonia"] == 1
+            # rus = RandomOverSampler(random_state=0, sampling_strategy=new_prop)
+            # resampled_df, _ = rus.fit_resample(orig_df, target)
+    if resample_method == "under":
+        if resample_class == 0:
+            new_num_normal = int(num_diseased / new_prop)
+            print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
+            df_normal_rs = df_normal.sample(new_num_normal, replace=False, random_state=seed)
+            resampled_df = pd.concat([df_normal_rs, df_diseased])
+        else:
+            raise NotImplementedError("Havent done custom undersampling for minority class")
     
-    resampled_df.sort_index(inplace=True)
     return resampled_df
             
-CXR_RESAMPLE="NONE"
 from os.path import exists
 def img_exists(path):
     return exists(path)
@@ -290,27 +302,31 @@ class CXRBase():
             df_env["img_exists"] = df_env["path"].apply(img_exists)
             df_env = df_env[df_env["img_exists"]]
             train_df, valid_df, test_df = cxrProcess.split(df_env)
+            test_df_balanced = balance_proportion(test_df, 0.5, resample_method=args.resample_method, seed=args.seed)
             print(f"{env} test set indices: {test_df.index[:10]}")
             self.dfs[env] = {
                 'train': train_df,
                 'val': valid_df,
-                'test': test_df
+                'test': test_df,
+                'test_bal': test_df_balanced
             }
 
+        # Log the original length and proportion of the training environments
+        self.log_dfs(is_original=True)
         if args.balance_method == "none":
             return
 
-        if args.balance_method == "label":
+        if args.balance_method in ["label", "label+size"]:
             print("Beginning label balancing")
             # Lets balance the label proportion of all training environments to match the test environment
             test_df = self.dfs[self.TEST_ENV]["test"]
-            for train_env in self.TRAIN_ENVS:
+            for i, train_env in enumerate(self.TRAIN_ENVS):
                 train_df = self.dfs[train_env]["train"]
                 val_df = self.dfs[train_env]["val"]
 
                 print(f"\nBalancing {train_env} to match {self.TEST_ENV}")
-                balanced_train_df = balance_proportion(train_df, test_df, seed=args.seed)
-                balanced_val_df = balance_proportion(val_df, test_df, seed=args.seed)
+                balanced_train_df = balance_proportion(train_df, get_prop(test_df), resample_method=args.resample_method, seed=args.seed)
+                balanced_val_df = balance_proportion(val_df, get_prop(test_df), resample_method=args.resample_method, seed=args.seed)
                 
                 self.dfs[train_env]["train"] = balanced_train_df
                 self.dfs[train_env]["val"] = balanced_val_df
@@ -320,45 +336,71 @@ class CXRBase():
 
         
         if args.balance_method == "label+size":
-            raise NotImplementedError()
+            self.balance_size(args.resample_method, args.seed)
+    
+        print("FINAL CHECK")
+        self.log_dfs(is_original=False)
 
-        # # Check all images exist
+    def log_dfs(self, is_original):
+        for i, train_env in enumerate(self.TRAIN_ENVS):
+            prefix_str = "orig-" if is_original else ""
+            train_env_prop = get_prop(self.dfs[train_env]['train'])
+            train_env_len = len(self.dfs[train_env]['train'])
 
-        # mimic_balanced = self.dfs["MIMIC"]
-        # cxp_balanced = self.dfs["CXP"]
-        # assert CXR_RESAMPLE in ["NONE", "OVER", "UNDER"]
-        # if CXR_RESAMPLE == "UNDER":    
-        #     print("Undersampling...")
-        #     mimic_balanced = balance_df_label(mimic_balanced, RandomUnderSampler, invert=True)
-        #     cxp_balanced = balance_df_label(cxp_balanced, RandomUnderSampler, invert=False)
+            val_env_prop = get_prop(self.dfs[train_env]['val'])
+            val_env_len = len(self.dfs[train_env]['val'])
 
-        #     # Balance the size of the two datasets
-        #     n = len(cxp_balanced)
-        #     mimic_balanced = mimic_balanced.sample(n, random_state=42)
-        # elif CXR_RESAMPLE == "OVER":
-        #     print("Oversampling...")
-        #     mimic_balanced = balance_df_label(mimic_balanced, RandomOverSampler, invert=True)
-        #     cxp_balanced = balance_df_label(cxp_balanced, RandomOverSampler, invert=False)
+            env_dict = {
+                f"{prefix_str}trn_env{i}-trn_prop": train_env_prop,
+                f"{prefix_str}trn_env{i}-trn_len": train_env_len,
+                f"{prefix_str}trn_env{i}-val_prop": val_env_prop,
+                f"{prefix_str}trn_env{i}-val_len": val_env_len,
+            }
+            wandb.config.update(env_dict)
+            print(json.dumps(env_dict, indent=True))
+            print()
 
-        #     # Upsample Chexpert to have the same num instances as MIMIC
-        #     n = len(mimic_balanced)
-        #     cxp_balanced = cxp_balanced.sample(n, replace=True, random_state=42)
-            
-        # print("Dataset lengths:", len(mimic_balanced), len(cxp_balanced))
-        # print("Pneumonia props:", get_pneumonia_prop(mimic_balanced), get_pneumonia_prop(cxp_balanced))
-        # self.dfs["MIMIC"] = mimic_balanced
-        # self.dfs["CXP"] = cxp_balanced
+    def balance_size(self, resample_method, seed):
+        if len(self.TRAIN_ENVS) == 1:
+            return
 
-        # ## Now go through and make the train,val,test split
-        # for env in cxrConstants.df_paths:
-        #     df_env = self.dfs[env]
-        #     train_df, valid_df, test_df = cxrProcess.split(df_env)
-        #     print(f"{env} test set indices: {test_df.index[:10]}")
-        #     self.dfs[env] = {
-        #         'train': train_df,
-        #         'val': valid_df,
-        #         'test': test_df
-        #     }
+        train_df_0 = self.dfs[self.TRAIN_ENVS[0]]["train"]
+        val_df_0 = self.dfs[self.TRAIN_ENVS[0]]["val"]
+
+        train_df_1 = self.dfs[self.TRAIN_ENVS[1]]["train"]
+        val_df_1 = self.dfs[self.TRAIN_ENVS[1]]["val"]
+
+        # Decide the larger of the two datasets
+        if resample_method == "under":
+            if len(train_df_0) > len(train_df_1):
+                # Balance 0 down to 1
+                print(f"Balancing env 0 ({len(train_df_0)}) down to env 1 ({len(train_df_1)})")
+                train_df_0_resampled = train_df_0.sample(len(train_df_1), random_state=seed)
+                val_df_0_resampled = val_df_0.sample(len(val_df_1), random_state=seed)
+                self.dfs[self.TRAIN_ENVS[0]]["train"] = train_df_0_resampled
+                self.dfs[self.TRAIN_ENVS[0]]["val"] = val_df_0_resampled
+            else:
+                # Balance 1 down to 0
+                print(f"Balancing env 1 ({len(train_df_1)}) down to env 0 ({len(train_df_0)})")
+                train_df_1_resampled = train_df_1.sample(len(train_df_0), random_state=seed)
+                val_df_1_resampled = val_df_1.sample(len(val_df_0), random_state=seed)
+                self.dfs[self.TRAIN_ENVS[1]]["train"] = train_df_1_resampled
+                self.dfs[self.TRAIN_ENVS[1]]["val"] = val_df_1_resampled
+        else:
+            if len(train_df_1) > len(train_df_0):
+                # Balance 0 UP to 1
+                print(f"Balancing env 0 ({len(train_df_0)}) up to env 1 ({len(train_df_1)})")
+                train_df_0_resampled = train_df_0.sample(len(train_df_1), replace=True, random_state=seed)
+                val_df_0_resampled = val_df_0.sample(len(val_df_1), replace=True, random_state=seed)
+                self.dfs[self.TRAIN_ENVS[0]]["train"] = train_df_0_resampled
+                self.dfs[self.TRAIN_ENVS[0]]["val"] = val_df_0_resampled
+            else:
+                # Balance 1 UP to 0
+                print(f"Balancing env 1 ({len(train_df_1)}) up to env 0 ({len(train_df_0)})")
+                train_df_1_resampled = train_df_1.sample(len(train_df_0), replace=True, random_state=seed)
+                val_df_1_resampled = val_df_1.sample(len(val_df_0), replace=True, random_state=seed)
+                self.dfs[self.TRAIN_ENVS[1]]["train"] = train_df_1_resampled
+                self.dfs[self.TRAIN_ENVS[1]]["val"] = val_df_1_resampled
 
     def predict_on_set(self, algorithm, loader, device):
         preds, targets, genders = [], [], []

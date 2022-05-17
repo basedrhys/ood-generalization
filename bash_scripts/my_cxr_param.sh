@@ -3,7 +3,6 @@ python -m clinicaldg.scripts.train \
     --wandb_name $1 \
     --es_method train \
     --algorithm ERM \
-    --delete_model \
     --max_steps 20000 \
     --checkpoint_freq 500 \
     --train_env_0 $2 \
