@@ -8,8 +8,9 @@ from torchvision import transforms
 import pickle
 from pathlib import Path
 from torch.utils.data import Dataset, ConcatDataset
+from time import sleep
 
-def get_dataset(dfs_all, envs = [], split = None, only_frontal = True, imagenet_norm = True, augment = 0, cache = False, subset_label = None):
+def get_dataset(dfs_all, img_size, envs = [], split = None, only_frontal = True, imagenet_norm = True, augment = 0, cache = False, subset_label = None):
       
     if split in ['val', 'test']:
         assert(augment in [0, -1])
@@ -39,7 +40,7 @@ def get_dataset(dfs_all, envs = [], split = None, only_frontal = True, imagenet_
         for c, s in enumerate(splits):
             cache_dir = Path(Constants.cache_dir)/ f'{e}/'
             cache_dir.mkdir(parents=True, exist_ok=True)
-            datasets.append(AllDatasetsShared(dfs[c], transform = transforms.Compose(image_transforms)
+            datasets.append(AllDatasetsShared(dfs[c], img_size, transform = transforms.Compose(image_transforms)
                                       , split = split, cache = cache, cache_dir = cache_dir, subset_label = subset_label)) 
                 
     if len(datasets) == 0:
@@ -53,7 +54,7 @@ def get_dataset(dfs_all, envs = [], split = None, only_frontal = True, imagenet_
     return ds
 
 class AllDatasetsShared(Dataset):
-    def __init__(self, dataframe, transform=None, split = None, cache = True, cache_dir = '', subset_label = None):
+    def __init__(self, dataframe, img_size, transform=None, split = None, cache = True, cache_dir = '', subset_label = None):
         super().__init__()
         self.dataframe = dataframe
         self.dataset_size = self.dataframe.shape[0]
@@ -62,6 +63,8 @@ class AllDatasetsShared(Dataset):
         self.cache = cache
         self.cache_dir = Path(cache_dir)
         self.subset_label = subset_label # (str) select one label instead of returning all Constants.take_labels
+        self.img_size=img_size
+        print(f"Created dataset with subset label={self.subset_label}, images of size={self.img_size}")
 
     def get_cache_path(self, cache_dir, meta):
         path = Path(meta['path'])
@@ -69,6 +72,21 @@ class AllDatasetsShared(Dataset):
             return cache_dir / (path.stem + '.pkl')
         elif meta['env'] in ['MIMIC', 'CXP']:
             return (cache_dir / '_'.join(path.parts[-3:])).with_suffix('.pkl')  
+
+    def load_image(self, path):
+        wait_time = 1
+        num_tries = 5
+        for _ in range(num_tries):
+            try:
+                img = np.array(Image.open(path))
+                return img
+            except Exception as e:
+                print(e)
+                print("Trying to read file again")
+                sleep(wait_time)
+
+        return None
+
         
     def __getitem__(self, idx):
         item = self.dataframe.iloc[idx]
@@ -78,7 +96,7 @@ class AllDatasetsShared(Dataset):
             img, label, meta = pickle.load(cache_path.open('rb'))
             meta = item.to_dict()
         else:            
-            img = np.array(Image.open(item["path"]))
+            img = self.load_image(item["path"])
 
             if img.dtype == 'int32':
                 img = np.uint8(img/(2**16)*255)
@@ -96,13 +114,18 @@ class AllDatasetsShared(Dataset):
                 img = np.concatenate([img, img, img], axis=2) 
 
             img = Image.fromarray(img)
-            resize_transform = transforms.Resize(size = [224, 224])            
-            img = transforms.Compose([resize_transform])(img)            
+            tmp_transforms = [transforms.Resize(size = [self.img_size, self.img_size])]
+            pad_len = 224 - self.img_size
+            if pad_len > 0:
+                side_pad_len = int(pad_len / 2)
+                tmp_transforms.append(transforms.Pad(side_pad_len))
+            img = transforms.Compose(tmp_transforms)(img)
 
-            label = torch.FloatTensor(np.zeros(len(Constants.take_labels), dtype=float))
-            for i in range(0, len(Constants.take_labels)):
-                if (self.dataframe[Constants.take_labels[i].strip()].iloc[idx].astype('float') > 0):
-                    label[i] = self.dataframe[Constants.take_labels[i].strip()].iloc[idx].astype('float')
+            disease_labels = Constants.take_labels + ["All"]
+            label = torch.FloatTensor(np.zeros(len(disease_labels), dtype=float))
+            for i in range(0, len(disease_labels)):
+                if (self.dataframe[disease_labels[i].strip()].iloc[idx].astype('float') > 0):
+                    label[i] = self.dataframe[disease_labels[i].strip()].iloc[idx].astype('float')
 
             meta = item.to_dict()
             
@@ -112,111 +135,12 @@ class AllDatasetsShared(Dataset):
         if self.transform is not None: # apply image augmentations after caching
             img = self.transform(img)
         
+        # Apply the actual label
         if self.subset_label:
-            label = int(label[Constants.take_labels.index(self.subset_label)])
+            label = int(label[disease_labels.index(self.subset_label)])
                 
         return img, label, meta
             
 
     def __len__(self):
         return self.dataset_size
-
-
-
-"""
-Constructor
- # self.input_transform = T.Compose([
-        #                             T.Resize((224, 224)),
-        #                             T.ToTensor(),
-        #                             T.Lambda(lambda x: x.repeat(3,1,1) if x.shape[0] == 1 else x),
-        #                             T.Normalize(Constants.IMAGENET_MEAN, Constants.IMAGENET_STD)
-        #                             ])
-
-        self.paths = self.dataframe["path"]
-        self.dataframe["Pneumonia"] = self.dataframe["Pneumonia"].fillna(0).astype(int)
-        self.labels = self.dataframe["Pneumonia"]
-
-        # self.num_paths = 2000
-        # print("Total random paths:", self.num_paths)
-        # self.rand_paths = self.dataframe.sample(n=self.num_paths, random_state=int(time.time()))["path"]
-        # self.rand_paths = self.dataframe.head(self.num_paths)["path"]
-        # print(self.rand_paths.iloc[0])
-        # self.path_i = 0
-        # self.dataframe.head(self.num_paths).to_csv(f"/scratch/rc4499/thesis/ood-generalization/csv/{time.time()}.csv", index=False)
-
-
-item = self.dataframe.iloc[idx]
-# cache_path = self.get_cache_path(self.cache_dir, item)
-
-# img = Image.open(self.paths.iloc[idx])
-
-# Random - proper indexed
-# this_path = self.rand_paths.iloc[idx % self.num_paths]
-# assert "/scratch/rc4499/thesis/ood-generalization/head" in this_path
-# img = Image.open(this_path)
-
-# # Random - iterative index
-# img = Image.open(self.rand_paths.iloc[self.path_i])
-# self.path_i = (self.path_i + 1) % self.num_paths
-# print(self.path_i, self.rand_paths.iloc[self.path_i], idx)
-
-# Fake image
-# img = item["path"]
-# Actual image
-img = Image.open(self.paths.iloc[idx])
-# img = Image.open(item["path"])
-# Single chexpert
-# img = Image.open("/CheXpert-v1.0/train/patient05320/study1/view1_frontal.jpg")
-# img = Image.open("/CheXpert-v1.0/train/patient55319/study3/view1_frontal.jpg")
-# img = Image.open("/scratch/rc4499/thesis/ood-generalization/cxr_small.jpg")
-# img = Image.open("/scratch/rc4499/thesis/ood-generalization/688a78f7-e2bec3a2-d44e1948-c627a046-195d5b10.jpg")
-
-img = self.transform(img)
-
-# label = int(item["Pneumonia"])
-label = int(self.labels.iloc[idx])
-
-return img, label, {}
-
-# if self.cache and cache_path.is_file():
-#     img, label, meta = pickle.load(cache_path.open('rb'))
-#     meta = item.to_dict()
-# else:            
-#     img = np.array(Image.open(item["path"]))
-
-#     if img.dtype == 'int32':
-#         img = np.uint8(img/(2**16)*255)
-#     elif img.dtype == 'bool':
-#         img = np.uint8(img)
-#     else: #uint8
-#         pass
-
-    # if len(img.shape) == 2:
-    #     img = img[:, :, np.newaxis]
-    #     img = np.concatenate([img, img, img], axis=2)            
-    # elif len(img.shape)>2:
-    #     img = img[:,:,0]
-    #     img = img[:, :, np.newaxis]
-    #     img = np.concatenate([img, img, img], axis=2) 
-
-#     img = Image.fromarray(img)
-#     resize_transform = transforms.Resize(size = [224, 224])            
-#     img = transforms.Compose([resize_transform])(img)            
-#     label = torch.FloatTensor(np.zeros(len(Constants.take_labels), dtype=float))
-#     for i in range(0, len(Constants.take_labels)):
-#         if (self.dataframe[Constants.take_labels[i].strip()].iloc[idx].astype('float') > 0):
-#             label[i] = self.dataframe[Constants.take_labels[i].strip()].iloc[idx].astype('float')
-
-#     meta = item.to_dict()
-    
-#     if self.cache:
-#         pickle.dump((img, label, meta), cache_path.open('wb'))
-
-# if self.transform is not None: # apply image augmentations after caching
-#     img = self.transform(img)
-
-# if self.subset_label:
-#     label = int(label[Constants.take_labels.index(self.subset_label)])
-
-# return img, label, meta
-"""
