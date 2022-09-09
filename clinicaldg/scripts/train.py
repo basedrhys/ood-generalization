@@ -7,6 +7,8 @@ import os
 import random
 import sys
 import time
+import gc
+import os
 import uuid
 
 import numpy as np
@@ -41,8 +43,12 @@ if __name__ == "__main__":
     parser.add_argument('--val_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
     parser.add_argument('--test_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
 
-    parser.add_argument('--balance_method', choices = ['none', 'label', 'label+size'], default='none')
+    parser.add_argument('--balance_method', choices = ['none', 'label', 'label+size', 'uniform', 'NURD'], default='none')
     parser.add_argument('--resample_method', choices = ['over', 'under'], default='over')
+    parser.add_argument('--num_instances', type=int)
+    parser.add_argument('--binary_label', type=str)
+    parser.add_argument('--nurd_ratio', type=float)
+    parser.add_argument('--img_size', default=224, type=int)
 
     parser.add_argument('--hparams', type=str,
         help='JSON-serialized hparams dict')
@@ -142,7 +148,28 @@ if __name__ == "__main__":
     print("Validation Environment: " + str(VAL_ENV))
     print("Test Environment: " + str(TEST_ENV))    
   
-    train_dss = [dataset.get_torch_dataset([env], 'train') for env in TRAIN_ENVS]
+    train_dss = [dataset.get_torch_dataset([env], 'train', args) for env in TRAIN_ENVS]
+
+    if args.num_instances:
+        print(f"INFO: Subsetting training datasets to {args.num_instances} instances")
+        for i, ds in enumerate(train_dss):
+            ds = torch.utils.data.Subset(ds, np.random.choice(np.arange(len(ds)), min(args.num_instances, len(ds)), replace = False))
+            train_dss[i] = ds
+
+    # from collections import Counter
+    # for i, env in enumerate(TRAIN_ENVS):
+    #     # Get the dataset
+    #     ds = train_dss[i]
+    #     # Calculate label proportions
+    #     labels = []
+    #     for j in range(len(ds)):
+    #         inst = ds[j]
+    #         labels.append(inst[1])
+        
+    #     print("LABEL NUMBERS")
+    #     print(Counter(labels))
+
+
     
     train_loaders = [InfiniteDataLoader(
         dataset=i,
@@ -153,11 +180,11 @@ if __name__ == "__main__":
         ]
     
     if args.es_method == 'val':
-        val_ds = dataset.get_torch_dataset([VAL_ENV], 'val')
+        val_ds = dataset.get_torch_dataset([VAL_ENV], 'val', args)
     elif args.es_method == 'train':
-        val_ds = dataset.get_torch_dataset(TRAIN_ENVS, 'val')
+        val_ds = dataset.get_torch_dataset(TRAIN_ENVS, 'val', args)
     elif args.es_method == 'test':
-        val_ds = dataset.get_torch_dataset([TEST_ENV], 'val')
+        val_ds = dataset.get_torch_dataset([TEST_ENV], 'val', args)
         
     if hasattr(dataset, 'NUM_SAMPLES_VAL'):
         val_ds = torch.utils.data.Subset(val_ds, np.random.choice(np.arange(len(val_ds)), min(dataset.NUM_SAMPLES_VAL, len(val_ds)), replace = False))
@@ -171,7 +198,7 @@ if __name__ == "__main__":
     
     test_loaders = {env:
         FastDataLoader(
-        dataset=dataset.get_torch_dataset([env], 'test'),
+        dataset=dataset.get_torch_dataset([env], 'test', args),
         batch_size=hparams['batch_size']*4,
         num_workers=dataset.N_WORKERS)
      for env in dataset.ENVIRONMENTS   
