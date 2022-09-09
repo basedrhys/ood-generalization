@@ -61,14 +61,15 @@ if __name__ == "__main__":
         help = 'delete model weights after training to save disk space')
     args = parser.parse_args()
 
-    args.output_dir = os.path.join(args.output_dir, args.wandb_name)
+    job_id = os.environ["SLURM_JOB_ID"] if os.environ["SLURM_JOB_ID"] is not None else 99
+    args.output_dir = os.path.join(args.output_dir, args.wandb_name + "-" + job_id)
     
     os.makedirs(args.output_dir, exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="train", 
+                job_type="final_train", 
                 entity="basedrhys", 
                 config=vars(args),
                 name=args.wandb_name)
