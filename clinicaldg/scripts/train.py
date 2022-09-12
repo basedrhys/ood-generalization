@@ -30,6 +30,23 @@ from clinicaldg.utils import EarlyStopping, has_checkpoint, load_checkpoint, sav
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+def run_testing(dataset, split_name, environments, args, algorithm, device, bs):
+    test_loader = {env:
+        FastDataLoader(
+        dataset=dataset.get_torch_dataset([env], split_name, args),
+        batch_size=bs,
+        num_workers=dataset.N_WORKERS)
+     for env in environments   
+    }
+    final_results = {}         
+    for name, loader in test_loader.items():
+        final_results.update(dataset.eval_metrics(algorithm, loader, name, weights = None, device = device))
+    del test_loader
+    gc.collect()
+
+    return final_results
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Domain generalization')
     parser.add_argument('--dataset', type=str, default="CXRBinary")
@@ -170,7 +187,7 @@ if __name__ == "__main__":
     #     print(Counter(labels))
 
 
-    
+
     train_loaders = [InfiniteDataLoader(
         dataset=i,
         weights=None,
@@ -185,7 +202,7 @@ if __name__ == "__main__":
         val_ds = dataset.get_torch_dataset(TRAIN_ENVS, 'val', args)
     elif args.es_method == 'test':
         val_ds = dataset.get_torch_dataset([TEST_ENV], 'val', args)
-        
+
     if hasattr(dataset, 'NUM_SAMPLES_VAL'):
         val_ds = torch.utils.data.Subset(val_ds, np.random.choice(np.arange(len(val_ds)), min(dataset.NUM_SAMPLES_VAL, len(val_ds)), replace = False))
 
@@ -195,14 +212,6 @@ if __name__ == "__main__":
         dataset=val_ds,
         batch_size=hparams['batch_size']*4,
         num_workers=dataset.N_WORKERS)
-    
-    test_loaders = {env:
-        FastDataLoader(
-        dataset=dataset.get_torch_dataset([env], 'test', args),
-        batch_size=hparams['batch_size']*4,
-        num_workers=dataset.N_WORKERS)
-     for env in dataset.ENVIRONMENTS   
-    }
 
     algorithm_class = algorithms.get_algorithm_class(args.algorithm)
     algorithm = algorithm_class(dataset.input_shape, dataset.num_classes,
@@ -314,12 +323,36 @@ if __name__ == "__main__":
         "es_step": es.step,
         'es_' + dataset.ES_METRIC: es.best_score
     }
+
+
+    save_dict['test'] = run_testing(
+        dataset=dataset,
+        split_name="test",
+        environments=dataset.ENVIRONMENTS,
+        args=args,
+        algorithm=algorithm,
+        device=device,
+        bs=hparams["batch_size"]*4)
+
+    save_dict['test_bal'] = run_testing(
+        dataset=dataset,
+        split_name="test_bal",
+        environments=dataset.ENVIRONMENTS,
+        args=args,
+        algorithm=algorithm,
+        device=device,
+        bs=hparams["batch_size"]*4)
+
+    if len(dataset.TRAIN_ENVS) > 1: # TODO figure out why results differ slightly
+        save_dict['test_comb'] = run_testing(
+            dataset=dataset,
+            split_name="test_combined",
+            environments=dataset.TRAIN_ENVS,
+            args=args,
+            algorithm=algorithm,
+            device=device,
+            bs=hparams["batch_size"]*4)
     
-    final_results = {}         
-    for name, loader in test_loaders.items():
-        final_results.update(dataset.eval_metrics(algorithm, loader, name, weights = None, device = device))
-        
-    save_dict['test_results'] = final_results    
     print("Finished final evaluation:")
     print(json.dumps(save_dict, indent=True))
     wandb.log(save_dict)
