@@ -73,7 +73,7 @@ class AllDatasetsShared(Dataset):
         elif meta['env'] in ['MIMIC', 'CXP']:
             return (cache_dir / '_'.join(path.parts[-3:])).with_suffix('.pkl')  
 
-    def load_image(self, path):
+    def load_image(self, path): # TODO check this is the only error spot
         wait_time = 1
         num_tries = 5
         for _ in range(num_tries):
@@ -97,6 +97,9 @@ class AllDatasetsShared(Dataset):
             meta = item.to_dict()
         else:            
             img = self.load_image(item["path"])
+
+            if img is None:
+                return self.__getitem__(0)
 
             if img.dtype == 'int32':
                 img = np.uint8(img/(2**16)*255)
