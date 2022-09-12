@@ -1,5 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
+import copy
 import os
 import torch
 from PIL import Image, ImageFile
@@ -18,9 +19,9 @@ import clinicaldg.cxr.Constants as cxrConstants
 import clinicaldg.cxr.data as cxrData
 import clinicaldg.cxr.Augmentations as cxrAugmentations
 import clinicaldg.cxr.process as cxrProcess
+from clinicaldg.cxr import Constants
 from clinicaldg.scripts.download import mnist_dir
 from sklearn.metrics import roc_auc_score, accuracy_score, recall_score, f1_score, confusion_matrix, precision_score, matthews_corrcoef
-from imblearn.over_sampling import RandomOverSampler
 import wandb
 import json
 
@@ -83,6 +84,9 @@ def binary_clf_metrics(preds, targets, grp, env_name, mask = None):
     
     return {env_name + '_roc': roc_auc_score(targets, preds),
            env_name + '_acc': accuracy_score(targets, preds_rounded_opt),
+           env_name + '_prec': precision_score(targets, preds_rounded_opt),
+           env_name + '_rec': recall_score(targets, preds_rounded_opt),
+           env_name + '_f1': f1_score(targets, preds_rounded_opt),
            env_name + '_tpr_gap': tpr_gap_opt,
            env_name + '_tnr_gap': tnr_gap_opt,
            env_name + '_parity_gap': parity_gap_opt,
