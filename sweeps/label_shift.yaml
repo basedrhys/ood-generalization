@@ -1,0 +1,26 @@
+program: ../ClinicalDG/clinicaldg/scripts/train.py
+project: ood-generalization
+entity: basedrhys
+method: grid
+name: "Label Shift Initial"
+parameters:
+  train_envs:
+    values: ["MIMIC", "CXP", "NIH", "PAD", "MIMIC,CXP", "MIMIC,NIH", "MIMIC,PAD", "CXP,NIH", "CXP,PAD", "NIH,PAD"]
+  test_env:
+    values: ["MIMIC", "CXP", "NIH", "PAD"]
+  balance_resample:
+    values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
+  binary_label:
+    values: ["Pneumonia", "All"]
+  seed:
+    values: [0, 1, 2]
+    # value: 1
+  label_shift:
+    value: null
+  
+command:
+  - /scratch/rc4499/envs_dirs/thesis/bin/python
+  - ${program}
+  - "--max_steps"
+  - "20001"
+  - ${args}

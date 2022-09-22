@@ -5,7 +5,7 @@
 #SBATCH --output=./out/gpu-jupyter_%j.out
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32GB
-#SBATCH --time=2:00:00
+#SBATCH --time=5:00:00
 #SBATCH --gres=gpu:1
 
 echo "This script should be run from the top-level of the ood-generalization repo"
