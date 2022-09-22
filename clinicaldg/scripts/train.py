@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+from copy import deepcopy
 import json
 import os
 import random
@@ -21,12 +22,14 @@ from tqdm import tqdm
 import wandb
 import json
 
+sys.path.append("/scratch/rc4499/thesis/ood-generalization/ClinicalDG")
+
 from clinicaldg import datasets
 from clinicaldg import hparams_registry
 from clinicaldg import algorithms
 from clinicaldg.lib import misc
 from clinicaldg.lib.fast_data_loader import InfiniteDataLoader, FastDataLoader
-from clinicaldg.utils import EarlyStopping, has_checkpoint, load_checkpoint, save_checkpoint
+from clinicaldg.utils import EarlyStopping, has_checkpoint, load_checkpoint, save_checkpoint, get_wandb_name
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -46,26 +49,55 @@ def run_testing(dataset, split_name, environments, args, algorithm, device, bs):
 
     return final_results
 
+def post_parse_args(args):
+    # Convert string Nones to literal Nones
+    for k,v in vars(args).items():
+        if isinstance(v, str) and v.lower() == "none":
+            vars(args)[k] = None
+
+    # Apply train_envs arg
+    assert (args.train_envs is None or args.train_env_0 is None), "One of train_envs / train_env_0 must be null"
+    if "train_envs" in args and args.train_envs is not None:
+        envs = args.train_envs.split(",")
+        args.train_env_0 = envs[0].strip()
+        if len(envs) > 1:
+            args.train_env_1 = envs[1].strip()
+    # Sanity check arg has been properly set before continuing
+    assert args.train_env_0 is not None, "Must set either train_env_0 or train_envs"
+
+
+    # Apply balance_resample arg
+    assert (args.balance_method is None or args.balance_resample is None), "One of balance_resample / balance_method must be null"
+    if args.balance_resample is not None:
+        balance,resample = [f.strip() for f in args.balance_resample.split(",")]
+        args.balance_method = balance
+        args.resample_method = resample
+
+    return args
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Domain generalization')
     parser.add_argument('--dataset', type=str, default="CXRBinary")
     parser.add_argument('--algorithm', type=str, default="ERM")
-    parser.add_argument('--es_method', choices = ['train', 'val', 'test'])
-    parser.add_argument('--wandb_name', type=str, required=True)
+    parser.add_argument('--es_method', choices = ['train', 'val', 'test'], default="train")
+    parser.add_argument('--wandb_name', type=str)
 
-    parser.add_argument('--train_env_0', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
+    parser.add_argument('--train_env_0', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'])
     # Using string None for easier visualisation in W+B
-    parser.add_argument('--train_env_1', choices = ['MIMIC', 'CXP', 'NIH', 'PAD', 'none'], default='none')
-    parser.add_argument('--val_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
-    parser.add_argument('--test_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], required=True)
+    parser.add_argument('--train_env_1', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'])
+    parser.add_argument('--train_envs')
+    parser.add_argument('--val_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], default="NIH")
+    parser.add_argument('--test_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], default="PAD")
 
-    parser.add_argument('--balance_method', choices = ['none', 'label', 'label+size', 'uniform', 'NURD'], default='none')
-    parser.add_argument('--resample_method', choices = ['over', 'under'], default='over')
+    parser.add_argument('--balance_method', choices = ['label', 'label+size', 'uniform', 'NURD'])
+    parser.add_argument('--resample_method', choices = ['over', 'under'])
+    parser.add_argument('--balance_resample')
     parser.add_argument('--num_instances', type=int)
-    parser.add_argument('--binary_label', type=str)
+    parser.add_argument('--binary_label', type=str, default="Pneumonia", choices=["Pneumonia", "All"])
     parser.add_argument('--nurd_ratio', type=float)
     parser.add_argument('--img_size', default=224, type=int)
+    parser.add_argument('--label_shift')
 
     parser.add_argument('--hparams', type=str,
         help='JSON-serialized hparams dict')
@@ -77,25 +109,42 @@ if __name__ == "__main__":
         help='Seed for everything else')
     parser.add_argument('--max_steps', type=int, default=None,
         help='Number of steps. Default is dataset-dependent.')
-    parser.add_argument('--checkpoint_freq', type=int, default=None,
+    parser.add_argument('--checkpoint_freq', type=int, default=500,
         help='Checkpoint every N steps. Default is dataset-dependent.')
-    parser.add_argument('--output_dir', type=str, default="train_output")
+    parser.add_argument('--output_dir', type=str, default="/scratch/rc4499/thesis/output")
     parser.add_argument('--delete_model', action = 'store_true', 
         help = 'delete model weights after training to save disk space')
     args = parser.parse_args()
 
+    args = post_parse_args(args)
+
+    job_name = get_wandb_name(args)
+
     job_id = os.environ["SLURM_JOB_ID"] if os.environ["SLURM_JOB_ID"] is not None else 99
-    args.output_dir = os.path.join(args.output_dir, args.wandb_name + "-" + job_id)
+    args.output_dir = os.path.join(args.output_dir, job_name + "-" + job_id)
     
     os.makedirs(args.output_dir, exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="final_train", 
+                job_type="neurips", 
                 entity="basedrhys", 
-                config=vars(args),
-                name=args.wandb_name)
+                config=args,
+                name=job_name)
+
+    # Override with sweep params
+    args = wandb.config
+
+    print("RESAMPLE METHOD:")
+    print(args.resample_method)
+    
+    if args.resample_method == "under":
+        print("Using under sampling...")
+        
+    if args.resample_method == "over":
+        print("Ignoring oversampling...")
+        exit()
 
     print("Environment:")
     print("\tPython: {}".format(sys.version.split(" ")[0]))
@@ -107,7 +156,7 @@ if __name__ == "__main__":
     print("\tPIL: {}".format(PIL.__version__))
 
     print('Args:')
-    for k, v in sorted(vars(args).items()):
+    for k, v in sorted(args.items()):
         print('\t{}: {}'.format(k, v))
 
     if args.hparams_seed == 0:
@@ -138,7 +187,7 @@ if __name__ == "__main__":
     
     # Parse the train/val/test environments from the args
     ds_class.TRAIN_ENVS = [args.train_env_0]
-    if args.train_env_1 != 'none':
+    if args.train_env_1 is not None:
         ds_class.TRAIN_ENVS.append(args.train_env_1)
     ds_class.VAL_ENV = args.val_env
     ds_class.TEST_ENV = args.test_env
@@ -284,7 +333,7 @@ if __name__ == "__main__":
 
             results.update({
                 'hparams': hparams,
-                'args': vars(args)    
+                'args': args._items,
             })
 
             epochs_path = os.path.join(args.output_dir, 'results.jsonl')
@@ -313,7 +362,7 @@ if __name__ == "__main__":
     algorithm.eval()
     
     save_dict = {
-        "args": vars(args),
+        "args": args._items,
         "model_input_shape": dataset.input_shape,
         "model_num_classes": dataset.num_classes,
         "model_train_domains": TRAIN_ENVS,
@@ -347,7 +396,7 @@ if __name__ == "__main__":
         save_dict['test_comb'] = run_testing(
             dataset=dataset,
             split_name="test_combined",
-            environments=dataset.TRAIN_ENVS,
+            environments=["MIMIC"],
             args=args,
             algorithm=algorithm,
             device=device,

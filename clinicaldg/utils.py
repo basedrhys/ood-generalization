@@ -64,3 +64,10 @@ def load_checkpoint():
     fname = Path(f'/checkpoint/{getpass.getuser()}/{slurm_job_id}/chkpt')
     if slurm_job_id is not None and fname.exists():
         return torch.load(fname)       
+
+def get_wandb_name(args):
+    train_env_0 = args.train_env_0
+    train_env_1 = args.train_env_1 if args.train_env_1 else ""
+    balance = args.balance_method
+    resample = args.resample_method
+    return f"({train_env_0},{train_env_1})-test({args.test_env})-bal({balance},{resample})"

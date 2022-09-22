@@ -228,6 +228,24 @@ def get_resample_class(orig_prop, new_prop, resample_method):
         else:
             return 0
 
+"""
+https://www.wolframalpha.com/input?i=n1%2F%28n1+%2B+n2%29+%3D+p%2C+solve+for+n2
+"""
+def calc_rs_n_c1(n, p):
+    return int(n * ((1 / p) - 1))
+
+"""
+https://www.wolframalpha.com/input?i=n2%2F%28n1+%2B+n2%29+%3D+p%2C+solve+for+n2
+"""
+def calc_rs_n_c0(n, p):
+    return int(-((n * p) / (p - 1)))
+
+def calc_rs_num(n0, n1, p, resample_class):
+    if resample_class == 0:
+        return calc_rs_n_c1(n1, p)
+    else:
+        return calc_rs_n_c0(n0, p)
+
 def balance_proportion(orig_df, new_prop, column, resample_method="over", seed=0):
     orig_df = orig_df.fillna(0.0)
     orig_prop = get_prop(orig_df, column)
@@ -236,35 +254,52 @@ def balance_proportion(orig_df, new_prop, column, resample_method="over", seed=0
     print(f"Resampling (with seed {seed}) '{column}' via '{resample_method}' on class {resample_class} from {orig_prop} to {new_prop}")
     
     # Estimate the number of items we'll need to resample
-    df_diseased = orig_df[orig_df[column] == 1.0]
     df_normal = orig_df[orig_df[column] == 0.0]
-    num_diseased = len(df_diseased)
+    df_diseased = orig_df[orig_df[column] == 1.0]
     num_normal = len(df_normal)
+    num_diseased = len(df_diseased)
+    print(num_normal, num_diseased)
     assert num_diseased + num_normal == len(orig_df)
+
     if resample_method == "over":
-        if resample_class == 0:
-            new_num_normal = int(num_diseased / new_prop)
-            print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
-            df_normal_rs = df_normal.sample(new_num_normal, replace=True, random_state=seed)
-            resampled_df = pd.concat([df_normal_rs, df_diseased])
-        else:
-            # Resample the pneumonia class
-            new_num_diseased = int(new_prop * num_normal)
-            df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=0)
-            resampled_df = pd.concat([df_normal, df_diseased_rs])
-            print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
-    if resample_method == "under":
-        if resample_class == 0:
-            new_num_normal = int(num_diseased / new_prop)
-            print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
-            df_normal_rs = df_normal.sample(new_num_normal, replace=False, random_state=seed)
-            resampled_df = pd.concat([df_normal_rs, df_diseased])
-        else:
-            # Resample the pneumonia class
-            new_num_diseased = int(new_prop * num_normal)
-            df_diseased_rs = df_diseased.sample(new_num_diseased, replace=False, random_state=0)
-            resampled_df = pd.concat([df_normal, df_diseased_rs])
-            print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")   
+        replace=True
+    else:
+        replace=False
+
+    if resample_class == 0:
+        new_num_normal = calc_rs_n_c1(num_diseased, new_prop)
+        print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
+        df_normal_rs = df_normal.sample(new_num_normal, replace=replace, random_state=seed)
+        resampled_df = pd.concat([df_normal_rs, df_diseased])
+    else:
+        # Resample the diseased class
+        new_num_diseased = calc_rs_n_c0(num_normal, new_prop)
+        print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
+        df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=0)
+        resampled_df = pd.concat([df_normal, df_diseased_rs])
+    #     if resample_class == 0:
+    #         new_num_normal = int(num_diseased / new_prop)
+    #         print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
+    #         df_normal_rs = df_normal.sample(new_num_normal, replace=True, random_state=seed)
+    #         resampled_df = pd.concat([df_normal_rs, df_diseased])
+    #     else:
+    #         # Resample the pneumonia class
+    #         new_num_diseased = int(new_prop * num_normal)
+    #         print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
+    #         df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=0)
+    #         resampled_df = pd.concat([df_normal, df_diseased_rs])
+    # if resample_method == "under":
+    #     if resample_class == 0:
+    #         new_num_normal = int(num_diseased / new_prop)
+    #         print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
+    #         df_normal_rs = df_normal.sample(new_num_normal, replace=False, random_state=seed)
+    #         resampled_df = pd.concat([df_normal_rs, df_diseased])
+    #     else:
+    #         # Resample the pneumonia class
+    #         new_num_diseased = int(new_prop * num_normal)
+    #         print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")   
+    #         df_diseased_rs = df_diseased.sample(new_num_diseased, replace=False, random_state=0)
+    #         resampled_df = pd.concat([df_normal, df_diseased_rs])
              
     return resampled_df
 
@@ -346,13 +381,10 @@ class CXRBase():
             df_env["All"] = df_env.apply(is_diseased, axis=1)
             df_env = df_env[df_env["img_exists"]]
             train_df, valid_df, test_df = cxrProcess.split(df_env)
-            test_df_balanced = balance_proportion(test_df, 0.5, resample_method="under", seed=args.seed, column=args.binary_label)
-            print(f"{split} test set indices: {test_df.index[:10]}")
             self.dfs[split] = {
                 'train': train_df,
                 'val': valid_df,
                 'test': test_df,
-                'test_bal': test_df_balanced
             }
 
         # Log the original length and proportion of the training environments
@@ -370,75 +402,73 @@ class CXRBase():
         if args.balance_method in ["label", "label+size", "uniform"]:
             print("Beginning label balancing")
             # Lets balance the label proportion of all training environments to match the test environment
-            test_df = self.dfs[self.TEST_ENV]["test"]
+            test_df = self.dfs[self.TEST_ENV]["train"] # use the train split as its larger and so less variable with seeds
             for i, train_env in enumerate(self.TRAIN_ENVS):
                 train_df = self.dfs[train_env]["train"]
                 val_df = self.dfs[train_env]["val"]
 
                 print(f"\nBalancing {train_env} to match {self.TEST_ENV}")
-                if train_env != self.TEST_ENV:
-                    balanced_train_df = balance_proportion(train_df, get_prop(test_df, column=args.binary_label), column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
-                    balanced_val_df = balance_proportion(val_df, get_prop(test_df, column=args.binary_label), column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
-                else:
-                    balanced_train_df = train_df
-                    balanced_val_df = val_df
+
+                balanced_train_df = balance_proportion(train_df, get_prop(test_df, column=args.binary_label), column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
+                balanced_val_df = balance_proportion(val_df, get_prop(test_df, column=args.binary_label), column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
                 
                 self.dfs[train_env]["train"] = balanced_train_df
                 self.dfs[train_env]["val"] = balanced_val_df
 
                 print(f"New {train_env} train split prop: {get_prop(self.dfs[train_env]['train'], column=args.binary_label)}")
-                print(f"New {train_env} val split prop: {get_prop(self.dfs[train_env]['val'], column=args.binary_label)}")
+                # print(f"New {train_env} val split prop: {get_prop(self.dfs[train_env]['val'], column=args.binary_label)}")
+            print()
 
-        if args.balance_method == "NURD":
-            assert len(self.TRAIN_ENVS) == 2, "NURD balancing can only be applied with 2 training environments"
-            env_a, env_b = self.TRAIN_ENVS
-            splits = ["train", "val", "test"]
-            labels = [(0, 1), (0, 1), (1, 0)]
-            for split, label in zip(splits, labels):
-                df_a, df_b = self.dfs[env_a][split], self.dfs[env_b][split]
-                df_a_0, df_b_0 = create_imbalance(df_a, df_b, args.nurd_ratio, args.binary_label, label[0], args.seed)
-                df_b_1, df_a_1  = create_imbalance(df_b, df_a, args.nurd_ratio, args.binary_label, label[1], args.seed)
+        # if args.balance_method == "NURD":
+        #     assert len(self.TRAIN_ENVS) == 2, "NURD balancing can only be applied with 2 training environments"
+        #     env_a, env_b = self.TRAIN_ENVS
+        #     splits = ["train", "val", "test"]
+        #     labels = [(0, 1), (0, 1), (1, 0)]
+        #     for split, label in zip(splits, labels):
+        #         df_a, df_b = self.dfs[env_a][split], self.dfs[env_b][split]
+        #         df_a_0, df_b_0 = create_imbalance(df_a, df_b, args.nurd_ratio, args.binary_label, label[0], args.seed)
+        #         df_b_1, df_a_1  = create_imbalance(df_b, df_a, args.nurd_ratio, args.binary_label, label[1], args.seed)
 
-                cols = ["subject_id", "path", args.binary_label]
-                print("\n\nSPLIT=", split)
-                print(f"NEW DF_A_{label[0]}=", len(df_a_0))
-                # print(df_a_0[cols])
+        #         cols = ["subject_id", "path", args.binary_label]
+        #         print("\n\nSPLIT=", split)
+        #         print(f"NEW DF_A_{label[0]}=", len(df_a_0))
+        #         # print(df_a_0[cols])
 
-                print(f"NEW DF_B_{label[0]}=", len(df_b_0))
-                # print(df_b_0[cols])
+        #         print(f"NEW DF_B_{label[0]}=", len(df_b_0))
+        #         # print(df_b_0[cols])
 
-                print(f"NEW DF_A_{label[1]}=", len(df_a_1))
-                # print(df_a_1[cols])
+        #         print(f"NEW DF_A_{label[1]}=", len(df_a_1))
+        #         # print(df_a_1[cols])
 
-                print(f"NEW DF_B_{label[1]}=", len(df_b_1))
-                # print(df_b_1[cols])
+        #         print(f"NEW DF_B_{label[1]}=", len(df_b_1))
+        #         # print(df_b_1[cols])
 
-                df_a_0, df_b_0, df_a_1, df_b_1 = balance_dfs(df_a_0, df_b_0, df_a_1, df_b_1)
+        #         df_a_0, df_b_0, df_a_1, df_b_1 = balance_dfs(df_a_0, df_b_0, df_a_1, df_b_1)
 
-                print(f"NEW DF_A_{label[0]}=", len(df_a_0))
-                # print(df_a_0[cols])
+        #         print(f"NEW DF_A_{label[0]}=", len(df_a_0))
+        #         # print(df_a_0[cols])
 
-                print(f"NEW DF_B_{label[0]}=", len(df_b_0))
-                # print(df_b_0[cols])
+        #         print(f"NEW DF_B_{label[0]}=", len(df_b_0))
+        #         # print(df_b_0[cols])
 
-                print(f"NEW DF_A_{label[1]}=", len(df_a_1))
-                # print(df_a_1[cols])
+        #         print(f"NEW DF_A_{label[1]}=", len(df_a_1))
+        #         # print(df_a_1[cols])
 
-                print(f"NEW DF_B_{label[1]}=", len(df_b_1))
-                # print(df_b_1[cols])
+        #         print(f"NEW DF_B_{label[1]}=", len(df_b_1))
+        #         # print(df_b_1[cols])
 
-                df_a = pd.concat([df_a_0, df_a_1]).sample(frac=1, random_state=args.seed).reset_index(drop=True)
-                df_b = pd.concat([df_b_0, df_b_1]).sample(frac=1, random_state=args.seed).reset_index(drop=True)
+        #         df_a = pd.concat([df_a_0, df_a_1]).sample(frac=1, random_state=args.seed).reset_index(drop=True)
+        #         df_b = pd.concat([df_b_0, df_b_1]).sample(frac=1, random_state=args.seed).reset_index(drop=True)
 
-                # # Undersample the bigger one to have the same proportion
-                # if len(df_a) > len(df_b):
-                #     df_a = df_a.sample(n=len(df_b), random_state=args.seed)
-                # else:
-                #     df_b = df_b.sample(n=len(df_a), random_state=args.seed)
+        #         # # Undersample the bigger one to have the same proportion
+        #         # if len(df_a) > len(df_b):
+        #         #     df_a = df_a.sample(n=len(df_b), random_state=args.seed)
+        #         # else:
+        #         #     df_b = df_b.sample(n=len(df_a), random_state=args.seed)
 
 
-                self.dfs[env_a][split] = df_a
-                self.dfs[env_b][split] = df_b
+        #         self.dfs[env_a][split] = df_a
+        #         self.dfs[env_b][split] = df_b
         
         if args.balance_method in ["label+size", "uniform"]:
             self.balance_size(args.resample_method, args.seed)
@@ -462,63 +492,50 @@ class CXRBase():
                 self.dfs[train_env]["train"] = train_df
                 self.dfs[train_env]["val"] = val_df
 
-        self.combine_test_sets(args.seed)
+        # Create auxiliary test sets
+        self.create_combined_test_sets(args.seed)
+        self.create_balanced_test_sets(args.binary_label, args.seed)
     
         print("\nFINAL CHECK")
         self.log_dfs(is_original=False, binary_label=args.binary_label)
 
     def log_dfs(self, is_original, binary_label):
+        prefix_str = "orig-" if is_original else ""
         for i, env in enumerate(self.ENVIRONMENTS):
-            prefix_str = "orig-" if is_original else ""
-            df_trn, df_val, df_test = self.dfs[env]['train'], self.dfs[env]['val'], self.dfs[env]['test']
-
-            train_env_prop = get_prop(df_trn, column=binary_label)
-            train_env_len = len(df_trn)
-
-            val_env_prop = get_prop(df_val, column=binary_label)
-            val_env_len = len(df_val)
-
-            test_env_prop = get_prop(df_test, column=binary_label)
-            test_env_len = len(df_test)
-
-            env_dict = {
-                f"{prefix_str}{env}-trn_prop": train_env_prop,
-                f"{prefix_str}{env}-trn_len": train_env_len,
-                f"{prefix_str}{env}-val_prop": val_env_prop,
-                f"{prefix_str}{env}-val_len": val_env_len,
-                f"{prefix_str}{env}-test_prop": test_env_prop,
-                f"{prefix_str}{env}-test_len": test_env_len,
-            }
-            wandb.config.update(env_dict)
-            print(json.dumps(env_dict, indent=True))
-            print()
+            log_str = f"{prefix_str}{env}"
+            self.log_splits_for_env(env, log_str, binary_label)
         
         for i, env in enumerate(self.TRAIN_ENVS):
-                prefix_str = "orig-" if is_original else ""
-                df_trn, df_val, df_test = self.dfs[env]['train'], self.dfs[env]['val'], self.dfs[env]['test']
+            log_str = f"{prefix_str}trn_env{i}"
+            self.log_splits_for_env(env, log_str, binary_label)
 
-                train_env_prop = get_prop(df_trn, column=binary_label)
-                train_env_len = len(df_trn)
+        log_str = f"{prefix_str}test_env"
+        self.log_splits_for_env(self.TEST_ENV, log_str, binary_label)
 
-                val_env_prop = get_prop(df_val, column=binary_label)
-                val_env_len = len(df_val)
+    def log_splits_for_env(self, env, log_str, binary_label):
+        df_trn, df_val, df_test = self.dfs[env]['train'], self.dfs[env]['val'], self.dfs[env]['test']
 
-                test_env_prop = get_prop(df_test, column=binary_label)
-                test_env_len = len(df_test)
+        train_split_prop = get_prop(df_trn, column=binary_label)
+        train_split_len = len(df_trn)
 
-                env_dict = {
-                    f"{prefix_str}trn_env{i}-trn_prop": train_env_prop,
-                    f"{prefix_str}trn_env{i}-trn_len": train_env_len,
-                    f"{prefix_str}trn_env{i}-val_prop": val_env_prop,
-                    f"{prefix_str}trn_env{i}-val_len": val_env_len,
-                    f"{prefix_str}trn_env{i}-test_prop": test_env_prop,
-                    f"{prefix_str}trn_env{i}-test_len": test_env_len,
-                }
-                wandb.config.update(env_dict)
-                print(json.dumps(env_dict, indent=True))
-                print()
+        val_split_prop = get_prop(df_val, column=binary_label)
+        val_split_len = len(df_val)
 
-    def combine_test_sets(self, seed):
+        test_split_prop = get_prop(df_test, column=binary_label)
+        test_split_len = len(df_test)
+
+        env_dict = {
+            f"{log_str}-trn_prop": train_split_prop,
+            f"{log_str}-trn_len": train_split_len,
+            f"{log_str}-val_prop": val_split_prop,
+            f"{log_str}-val_len": val_split_len,
+            f"{log_str}-test_prop": test_split_prop,
+            f"{log_str}-test_len": test_split_len,
+        }
+        wandb.config.update(env_dict)
+        print(json.dumps(env_dict, indent=True), end='\n\n')
+
+    def create_combined_test_sets(self, seed):
         if len(self.TRAIN_ENVS) < 2:
             return
 
@@ -536,7 +553,13 @@ class CXRBase():
         test_df_comb = pd.concat([test_df_0, test_df_1]).sample(frac=1, random_state=seed).reset_index()
 
         for env in self.ENVIRONMENTS:
-            self.dfs[env]['test_combined'] = test_df_comb
+            self.dfs[env]['test_combined'] = test_df_comb.copy(deep=True)
+
+    def create_balanced_test_sets(self, binary_label, seed):
+        for i, env in enumerate(self.ENVIRONMENTS):
+            test_df = self.dfs[env]["test"]
+            test_df_balanced = balance_proportion(test_df, 0.5, resample_method="under", seed=seed, column=binary_label)
+            self.dfs[env]["test_bal"] = test_df_balanced
 
     def balance_size(self, resample_method, seed):
         if len(self.TRAIN_ENVS) == 1:
@@ -582,10 +605,10 @@ class CXRBase():
 
     def predict_on_set(self, algorithm, loader, device):
         preds, targets, genders = [], [], []
+        algorithm.eval()
         with torch.no_grad():
             for x, y, meta in tqdm(loader):
                 x = misc.to_device(x, device)
-                algorithm.eval()
                 logits = algorithm.predict(x)
 
                 targets += y.detach().cpu().numpy().tolist()

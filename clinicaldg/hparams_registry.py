@@ -129,7 +129,8 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('batch_size', 128) 
         
     elif dataset[:3] == 'CXR':    
-        _hparam('lr', 5e-4, lambda r: 10**r.uniform(-5.0, -2.5))
+        # _hparam('lr', 5e-4, lambda r: 10**r.uniform(-5.0, -2.5))
+        _hparam("lr", 0.00005)
         if algorithm in ['IGA', 'MLDG']:
             _hparam('batch_size', 12) 
         elif algorithm in ['MLDG']:
@@ -137,7 +138,7 @@ def _hparams(algorithm, dataset, random_seed):
         elif algorithm in ['ERMMerged']:
             _hparam('batch_size', 24) 
         else:
-            _hparam('batch_size', 32) 
+            _hparam('batch_size', 128) 
 
     # data hyperparameters
     _hparam('eicu_architecture', "GRU")
