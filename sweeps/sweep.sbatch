@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=grid_search
 #SBATCH --output=./out/%j-test-grid_search.out
-#SBATCH --array=0-1200%50
+#SBATCH --array=0-108%50
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=40GB
 #SBATCH --time=4:00:00
@@ -23,5 +23,5 @@ singularity exec --nv \
 source /ext3/env.sh
 conda activate thesis
 cd /scratch/rc4499/thesis/ood-generalization/ClinicalDG
-wandb agent --count 1 basedrhys/ood-generalization/if4t5xx2
+wandb agent --count 1 basedrhys/ood-generalization/ddb8s7ue
 "
