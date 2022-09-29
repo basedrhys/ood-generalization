@@ -30,10 +30,12 @@ from clinicaldg import algorithms
 from clinicaldg.lib import misc
 from clinicaldg.lib.fast_data_loader import InfiniteDataLoader, FastDataLoader
 from clinicaldg.utils import EarlyStopping, has_checkpoint, load_checkpoint, save_checkpoint, get_wandb_name
+from clinicaldg.cxr.Constants import LABEL_SHIFTS
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 def run_testing(dataset, split_name, environments, args, algorithm, device, bs):
+    print(f"TEST: Running on split: {split_name} for environments: {environments}")
     test_loader = {env:
         FastDataLoader(
         dataset=dataset.get_torch_dataset([env], split_name, args),
@@ -53,8 +55,11 @@ def post_parse_args(args):
     # Convert string Nones to literal Nones
     for k,v in vars(args).items():
         if isinstance(v, str) and v.lower() == "none":
-            vars(args)[k] = None
+            print(f"None string converting: {k}:{v}")
+            setattr(args, k, None)
 
+    print("Finished fixing command line args")
+    print(vars(args))
     # Apply train_envs arg
     assert (args.train_envs is None or args.train_env_0 is None), "One of train_envs / train_env_0 must be null"
     if "train_envs" in args and args.train_envs is not None:
@@ -97,7 +102,9 @@ if __name__ == "__main__":
     parser.add_argument('--binary_label', type=str, default="Pneumonia", choices=["Pneumonia", "All"])
     parser.add_argument('--nurd_ratio', type=float)
     parser.add_argument('--img_size', default=224, type=int)
-    parser.add_argument('--label_shift')
+    parser.add_argument('--label_shift', type=float)
+    parser.add_argument('--dataset_reduction_factor', type=int)
+    parser.add_argument('--model_type', type=str, default="densenet121")
 
     parser.add_argument('--hparams', type=str,
         help='JSON-serialized hparams dict')
@@ -128,7 +135,7 @@ if __name__ == "__main__":
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="neurips", 
+                job_type="test", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)
@@ -158,6 +165,11 @@ if __name__ == "__main__":
     print('Args:')
     for k, v in sorted(args.items()):
         print('\t{}: {}'.format(k, v))
+
+    if args.balance_method is None and not (args.label_shift == -1 or args.label_shift is None):
+        print("Unneeded training config")
+        print(args.balance_method, args.label_shift)
+        exit()
 
     if args.hparams_seed == 0:
         hparams = hparams_registry.default_hparams(args.algorithm, args.dataset)
@@ -221,21 +233,16 @@ if __name__ == "__main__":
         for i, ds in enumerate(train_dss):
             ds = torch.utils.data.Subset(ds, np.random.choice(np.arange(len(ds)), min(args.num_instances, len(ds)), replace = False))
             train_dss[i] = ds
-
-    # from collections import Counter
-    # for i, env in enumerate(TRAIN_ENVS):
-    #     # Get the dataset
-    #     ds = train_dss[i]
-    #     # Calculate label proportions
-    #     labels = []
-    #     for j in range(len(ds)):
-    #         inst = ds[j]
-    #         labels.append(inst[1])
-        
-    #     print("LABEL NUMBERS")
-    #     print(Counter(labels))
-
-
+    
+    if args.dataset_reduction_factor is not None and args.dataset_reduction_factor != 1:
+        factor = args.dataset_reduction_factor
+        print(f"INFO: Reducing dataset by factor of {factor}")
+        for i, ds in enumerate(train_dss):
+            old_len = len(ds)
+            new_len = old_len // factor
+            ds = torch.utils.data.Subset(ds, np.random.choice(np.arange(len(ds)), new_len, replace = False))
+            print(f"\tSubsetted from {old_len} to {len(ds)}")
+            train_dss[i] = ds
 
     train_loaders = [InfiniteDataLoader(
         dataset=i,
@@ -264,7 +271,7 @@ if __name__ == "__main__":
 
     algorithm_class = algorithms.get_algorithm_class(args.algorithm)
     algorithm = algorithm_class(dataset.input_shape, dataset.num_classes,
-        len(TRAIN_ENVS), hparams, args.dataset, dataset)
+        len(TRAIN_ENVS), hparams, args.dataset, dataset, args.model_type)
 
     algorithm.to(device)
     
@@ -291,7 +298,7 @@ if __name__ == "__main__":
         print("Loaded checkpoint at step %s" % start_step)
     else:
         start_step = 0        
-    
+
     last_results_keys = None
     pbar = tqdm(range(start_step, n_steps))
     for step in pbar:
@@ -383,14 +390,15 @@ if __name__ == "__main__":
         device=device,
         bs=hparams["batch_size"]*4)
 
-    save_dict['test_bal'] = run_testing(
-        dataset=dataset,
-        split_name="test_bal",
-        environments=dataset.ENVIRONMENTS,
-        args=args,
-        algorithm=algorithm,
-        device=device,
-        bs=hparams["batch_size"]*4)
+    for shift in LABEL_SHIFTS:
+        save_dict[f'test_{shift}'] = run_testing(
+            dataset=dataset,
+            split_name=f"test_{shift}",
+            environments=[dataset.TEST_ENV],
+            args=args,
+            algorithm=algorithm,
+            device=device,
+            bs=hparams["batch_size"]*4)
 
     if len(dataset.TRAIN_ENVS) > 1: # TODO figure out why results differ slightly
         save_dict['test_comb'] = run_testing(

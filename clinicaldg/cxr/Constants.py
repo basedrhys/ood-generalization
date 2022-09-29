@@ -28,3 +28,5 @@ take_labels = ['No Finding', 'Atelectasis', 'Cardiomegaly',  'Effusion',  'Pneum
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]         # Mean of ImageNet dataset (used for normalization)
 IMAGENET_STD = [0.229, 0.224, 0.225]          # Std of ImageNet dataset (used for normalization)
+
+LABEL_SHIFTS = [0.1, 0.2, 0.5, 0.8, 0.9]

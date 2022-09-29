@@ -33,7 +33,7 @@ class MLP(nn.Module):
         return x
 
 
-def Featurizer(input_shape, hparams, dataset_name, dataset):
+def Featurizer(input_shape, hparams, dataset_name, dataset, model_type):
     """Auto-select an appropriate featurizer for the given dataset."""
     if dataset_name == 'ColoredMNIST':
         return MLP(input_shape[0], 128, hparams)
@@ -45,6 +45,7 @@ def Featurizer(input_shape, hparams, dataset_name, dataset):
             return eICUModels.GRUNet(*dataset.d.get_num_levels(), hparams['emb_dim'], hparams['gru_layers'], hparams['gru_hidden_dim'],
                                             dropout_p = hparams['mlp_dropout'])
     elif dataset_name[:3] == 'CXR':
-        return cxrModels.EmbModel('densenet', pretrain = True, concat_features = 1 if dataset_name == 'CXRSubsampleObs' else 0)
+        print(f"INFO: Creating CXR featurizer with model type: {model_type}")
+        return cxrModels.EmbModel(model_type, pretrain = True, concat_features = 1 if dataset_name == 'CXRSubsampleObs' else 0)
     else:
         raise NotImplementedError

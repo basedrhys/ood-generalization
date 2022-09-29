@@ -83,10 +83,11 @@ class ERM(Algorithm):
     Empirical Risk Minimization (ERM)
     """
 
-    def __init__(self, input_shape, num_classes, num_domains, hparams, dataset_name, dataset):
+    def __init__(self, input_shape, num_classes, num_domains, hparams, dataset_name, dataset, model_type):
         super(ERM, self).__init__(input_shape, num_classes, num_domains,
                                   hparams)
-        self.featurizer = networks.Featurizer(input_shape, self.hparams, dataset_name, dataset)
+        print(f"INFO: Creating ERM with model type: {model_type}")
+        self.featurizer = networks.Featurizer(input_shape, self.hparams, dataset_name, dataset, model_type)
         self.classifier = nn.Linear(self.featurizer.n_outputs, num_classes)
         self.network = nn.Sequential(self.featurizer, self.classifier)
         self.optimizer = torch.optim.Adam(

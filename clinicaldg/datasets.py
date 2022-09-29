@@ -258,7 +258,6 @@ def balance_proportion(orig_df, new_prop, column, resample_method="over", seed=0
     df_diseased = orig_df[orig_df[column] == 1.0]
     num_normal = len(df_normal)
     num_diseased = len(df_diseased)
-    print(num_normal, num_diseased)
     assert num_diseased + num_normal == len(orig_df)
 
     if resample_method == "over":
@@ -403,14 +402,22 @@ class CXRBase():
             print("Beginning label balancing")
             # Lets balance the label proportion of all training environments to match the test environment
             test_df = self.dfs[self.TEST_ENV]["train"] # use the train split as its larger and so less variable with seeds
+            print("Label balancing... args.label_shift:",args.label_shift)
+            if args.label_shift is None or args.label_shift == -1:
+                target_prop = get_prop(test_df, column=args.binary_label)
+                print(f"Target prop: getting proportion from test df: {target_prop}")
+            else:
+                target_prop = args.label_shift
+                print(f"Target prop: getting proportion from label shift arg: {target_prop}")
+
             for i, train_env in enumerate(self.TRAIN_ENVS):
                 train_df = self.dfs[train_env]["train"]
                 val_df = self.dfs[train_env]["val"]
 
                 print(f"\nBalancing {train_env} to match {self.TEST_ENV}")
 
-                balanced_train_df = balance_proportion(train_df, get_prop(test_df, column=args.binary_label), column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
-                balanced_val_df = balance_proportion(val_df, get_prop(test_df, column=args.binary_label), column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
+                balanced_train_df = balance_proportion(train_df, target_prop, column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
+                balanced_val_df = balance_proportion(val_df, target_prop, column=args.binary_label, resample_method=args.resample_method, seed=args.seed)
                 
                 self.dfs[train_env]["train"] = balanced_train_df
                 self.dfs[train_env]["val"] = balanced_val_df
@@ -494,7 +501,7 @@ class CXRBase():
 
         # Create auxiliary test sets
         self.create_combined_test_sets(args.seed)
-        self.create_balanced_test_sets(args.binary_label, args.seed)
+        self.create_synthetic_bal_test_sets(args.binary_label, args.seed)
     
         print("\nFINAL CHECK")
         self.log_dfs(is_original=False, binary_label=args.binary_label)
@@ -555,11 +562,14 @@ class CXRBase():
         for env in self.ENVIRONMENTS:
             self.dfs[env]['test_combined'] = test_df_comb.copy(deep=True)
 
-    def create_balanced_test_sets(self, binary_label, seed):
-        for i, env in enumerate(self.ENVIRONMENTS):
+    def create_synthetic_bal_test_sets(self, binary_label, seed):
+        for env in self.ENVIRONMENTS:
+            print("SYNTHETIC:", env)
             test_df = self.dfs[env]["test"]
-            test_df_balanced = balance_proportion(test_df, 0.5, resample_method="under", seed=seed, column=binary_label)
-            self.dfs[env]["test_bal"] = test_df_balanced
+            for shift in Constants.LABEL_SHIFTS:
+                test_df_balanced = balance_proportion(test_df, shift, resample_method="under", seed=seed, column=binary_label)
+                print(f"Final synthetic dataset size: {len(test_df_balanced)}", end="\n\n")
+                self.dfs[env][f"test_{shift}"] = test_df_balanced
 
     def balance_size(self, resample_method, seed):
         if len(self.TRAIN_ENVS) == 1:
@@ -659,6 +669,8 @@ class CXRBinary(CXRBase):
         
     def eval_metrics(self, algorithm, loader, env_name, weights, device):
         preds, targets, genders = self.predict_on_set(algorithm, loader, device)
+        print("Eval metrics target counts =")
+        print(np.array(np.unique(targets, return_counts=True)).T)
         male = genders == 'M'        
         return binary_clf_metrics(preds, targets, male, env_name)
     

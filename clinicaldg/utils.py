@@ -70,4 +70,5 @@ def get_wandb_name(args):
     train_env_1 = args.train_env_1 if args.train_env_1 else ""
     balance = args.balance_method
     resample = args.resample_method
-    return f"({train_env_0},{train_env_1})-test({args.test_env})-bal({balance},{resample})"
+    shift = args.label_shift
+    return f"({train_env_0},{train_env_1})-test({args.test_env})-shift({shift})-bal({balance},{resample})"
