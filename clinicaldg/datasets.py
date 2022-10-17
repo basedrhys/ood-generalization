@@ -572,13 +572,13 @@ class CXRBase():
             self.dfs[env]['test_combined'] = test_df_comb.copy(deep=True)
 
     def create_synthetic_bal_test_sets(self, binary_label, seed):
-        for env in self.ENVIRONMENTS:
-            print("SYNTHETIC:", env)
-            test_df = self.dfs[env]["test"]
-            for shift in Constants.LABEL_SHIFTS:
-                test_df_balanced = balance_proportion(test_df, shift, resample_method="under", seed=seed, column=binary_label)
-                print(f"Final synthetic dataset size: {len(test_df_balanced)}", end="\n\n")
-                self.dfs[env][f"test_{shift}"] = test_df_balanced
+        env = self.TEST_ENV
+        print("SYNTHETIC:", env)
+        test_df = self.dfs[env]["test"]
+        for shift in Constants.LABEL_SHIFTS:
+            test_df_balanced = balance_proportion(test_df, shift, resample_method="under", seed=seed, column=binary_label)
+            print(f"Final synthetic dataset size: {len(test_df_balanced)}", end="\n\n")
+            self.dfs[env][f"test_{shift}"] = test_df_balanced
 
     def balance_size(self, resample_method, seed):
         if len(self.TRAIN_ENVS) == 1:
@@ -625,6 +625,7 @@ class CXRBase():
     def predict_on_set(self, algorithm, loader, device):
         preds, targets, genders = [], [], []
         algorithm.eval()
+        meta_df = None
         with torch.no_grad():
             for x, y, meta in tqdm(loader):
                 x = misc.to_device(x, device)
@@ -632,6 +633,12 @@ class CXRBase():
 
                 targets += y.detach().cpu().numpy().tolist()
                 genders += meta['Sex']
+                tmp_df = pd.DataFrame(meta)
+                if meta_df is None:
+                    meta_df = tmp_df
+                else:
+                    meta_df = pd.concat([meta_df, tmp_df])
+
                 if y.ndim == 1 or y.shape[1] == 1: # multiclass
                     preds_list = torch.nn.Softmax(dim = 1)(logits)[:, 1].detach().cpu().numpy().tolist()
                 else: # multilabel
@@ -640,7 +647,10 @@ class CXRBase():
                     preds += preds_list
                 else:
                     preds += [preds_list]
-        return np.array(preds), np.array(targets), np.array(genders) 
+
+        meta_df["preds"] = preds
+        meta_df["targets"] = targets
+        return np.array(preds), np.array(targets), np.array(genders), meta_df
         
 class CXR(CXRBase):    
     num_classes = len(cxrConstants.take_labels)   
@@ -664,7 +674,7 @@ class CXR(CXRBase):
         results = self.multilabel_metrics(preds, targets, male, prefix = env_name+ '_', suffix = '')
         results[env_name+'_roc'] = roc
         
-        opt_thress = [compute_opt_thres(targets[:, i], preds[:, i])  for i in range(self.num_classes)]
+        opt_thress = [compute_opt_thresh(targets[:, i], preds[:, i])  for i in range(self.num_classes)]
         results.update(self.multilabel_metrics(preds, targets, male, prefix = env_name + '_', suffix = '_thres', thress = opt_thress))
                 
         return results    
@@ -676,12 +686,10 @@ class CXR(CXRBase):
 class CXRBinary(CXRBase):
     num_classes = 2
         
-    def eval_metrics(self, algorithm, loader, env_name, weights, device):
-        preds, targets, genders = self.predict_on_set(algorithm, loader, device)
-        print("Eval metrics target counts =")
-        print(np.array(np.unique(targets, return_counts=True)).T)
+    def eval_metrics(self, algorithm, loader, env_name, weights, device, thresh):
+        preds, targets, genders, meta_df = self.predict_on_set(algorithm, loader, device)
         male = genders == 'M'        
-        return binary_clf_metrics(preds, targets, male, env_name)
+        return binary_clf_metrics(preds, targets, male, env_name, orig_thresh=thresh), meta_df
     
     def get_torch_dataset(self, envs, dset, args):
         augment = 0 if dset in ['val', 'test'] else self.hparams['cxr_augment']    

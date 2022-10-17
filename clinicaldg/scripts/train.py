@@ -34,18 +34,23 @@ from clinicaldg.cxr.Constants import LABEL_SHIFTS
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
-def run_testing(dataset, split_name, environments, args, algorithm, device, bs):
+def run_testing(dataset, split_name, environments, args, algorithm, device, bs, thresh):
     print(f"TEST: Running on split: {split_name} for environments: {environments}")
     test_loader = {env:
         FastDataLoader(
         dataset=dataset.get_torch_dataset([env], split_name, args),
         batch_size=bs,
-        num_workers=dataset.N_WORKERS)
+        num_workers=dataset.N_WORKERS,
+        shuffle=False)
      for env in environments   
     }
     final_results = {}         
     for name, loader in test_loader.items():
-        final_results.update(dataset.eval_metrics(algorithm, loader, name, weights = None, device = device))
+        eval_metrics, meta_df = dataset.eval_metrics(algorithm, loader, name, weights = None, device = device, thresh = thresh)
+        final_results.update(eval_metrics)
+        
+        meta_df.to_csv(f"{args.output_dir}/{split_name}-{name}.csv")
+
     del test_loader
     gc.collect()
 
@@ -129,13 +134,14 @@ if __name__ == "__main__":
 
     job_id = os.environ["SLURM_JOB_ID"] if os.environ["SLURM_JOB_ID"] is not None else 99
     args.output_dir = os.path.join(args.output_dir, job_name + "-" + job_id)
+    print(f"SLURM JOB ID:", job_id)
     
     os.makedirs(args.output_dir, exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="test", 
+                job_type="thesis", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)
@@ -180,6 +186,7 @@ if __name__ == "__main__":
         hparams.update(json.loads(args.hparams))
 
     wandb.config.update(hparams)
+    wandb.config.update({"slurm_id": job_id})
     print('HParams:')
     for k, v in sorted(hparams.items()):
         print('\t{}: {}'.format(k, v))
@@ -194,6 +201,8 @@ if __name__ == "__main__":
         device = "cuda"
     else:
         device = "cpu"
+
+    print(f"DEVICE: {device}")
         
     ds_class = vars(datasets)[args.dataset]  
     
@@ -328,7 +337,7 @@ if __name__ == "__main__":
                 results[key] = np.mean(val)
 
             # validation
-            results.update(dataset.eval_metrics(algorithm, eval_loader, 'es', weights = None, device = device))                        
+            results.update(dataset.eval_metrics(algorithm, eval_loader, 'es', weights = None, device = device, thresh=None)[0])                        
             wandb.log(results)                    
                 
             results_keys = sorted(results.keys())
@@ -353,7 +362,7 @@ if __name__ == "__main__":
             
             checkpoint_vals = collections.defaultdict(lambda: [])
             
-            es(-results['es_' + dataset.ES_METRIC], step, algorithm.state_dict(), os.path.join(args.output_dir, "model.pkl"))            
+            es(-results['es_' + dataset.ES_METRIC], results['es_opt_thresh'], step, algorithm.state_dict(), os.path.join(args.output_dir, "model.pkl"))            
 
     # print(f"Num instances after training: {algorithm.num_inst}")
     # print(f"Num positive after training: {algorithm.num_pos}")
@@ -366,6 +375,8 @@ if __name__ == "__main__":
     # wandb.log({"DS 1 Class Proportion": algorithm.num_pos_1 / algorithm.num_inst_1})
     # wandb.log({"DS 2 Class Proportion": algorithm.num_pos_2 / algorithm.num_inst_2})
     algorithm.load_state_dict(torch.load(os.path.join(args.output_dir, "model.pkl")))
+    opt_thresh = es.best_thresh
+    print(f"Using thresh: {opt_thresh} found during training")
     algorithm.eval()
     
     save_dict = {
@@ -377,7 +388,7 @@ if __name__ == "__main__":
         "model_test_domains": TEST_ENV,
         "model_hparams": hparams,
         "es_step": es.step,
-        'es_' + dataset.ES_METRIC: es.best_score
+        'es_' + dataset.ES_METRIC: es.best_score,
     }
 
 
@@ -388,7 +399,8 @@ if __name__ == "__main__":
         args=args,
         algorithm=algorithm,
         device=device,
-        bs=hparams["batch_size"]*4)
+        bs=hparams["batch_size"]*4,
+        thresh=opt_thresh)
 
     for shift in LABEL_SHIFTS:
         save_dict[f'test_{shift}'] = run_testing(
@@ -398,7 +410,8 @@ if __name__ == "__main__":
             args=args,
             algorithm=algorithm,
             device=device,
-            bs=hparams["batch_size"]*4)
+            bs=hparams["batch_size"]*4,
+            thresh=opt_thresh)
 
     if len(dataset.TRAIN_ENVS) > 1: # TODO figure out why results differ slightly
         save_dict['test_comb'] = run_testing(
@@ -408,7 +421,8 @@ if __name__ == "__main__":
             args=args,
             algorithm=algorithm,
             device=device,
-            bs=hparams["batch_size"]*4)
+            bs=hparams["batch_size"]*4,
+            thresh=opt_thresh)
     
     print("Finished final evaluation:")
     print(json.dumps(save_dict, indent=True))

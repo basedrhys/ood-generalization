@@ -127,8 +127,11 @@ class AllDatasetsShared(Dataset):
             disease_labels = Constants.take_labels + ["All"]
             label = torch.FloatTensor(np.zeros(len(disease_labels), dtype=float))
             for i in range(0, len(disease_labels)):
-                if (self.dataframe[disease_labels[i].strip()].iloc[idx].astype('float') > 0):
-                    label[i] = self.dataframe[disease_labels[i].strip()].iloc[idx].astype('float')
+                val = self.dataframe[disease_labels[i].strip()].iloc[idx]
+                if not (isinstance(val, int) or isinstance(val, float)):
+                    val = val.astype('float')
+                if (val > 0):
+                    label[i] = val
 
             meta = item.to_dict()
             
