@@ -2,21 +2,21 @@ program: ../ClinicalDG/clinicaldg/scripts/train.py
 project: ood-generalization
 entity: basedrhys
 method: grid
-name: "Label Shift Initial"
+name: "OOD Performance Measurement"
 parameters:
   train_envs:
     values: ["MIMIC", "CXP", "NIH", "PAD", "MIMIC,CXP", "MIMIC,NIH", "MIMIC,PAD", "CXP,NIH", "CXP,PAD", "NIH,PAD"]
   test_env:
-    values: ["MIMIC", "CXP", "NIH", "PAD"]
+    # values: ["MIMIC", "CXP", "NIH", "PAD"]
+    values: ["CXP"]
   balance_resample:
-    values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
+    # values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
+    values: ["none"]
   binary_label:
-    values: ["Pneumonia", "All"]
+    values: ["All", "Pneumonia"]
   seed:
-    values: [0, 1, 2]
+    values: [1, 2]
     # value: 1
-  label_shift:
-    value: null
   
 command:
   - /scratch/rc4499/envs_dirs/thesis/bin/python

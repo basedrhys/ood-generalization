@@ -6,21 +6,20 @@ name: "Label Shift Extreme"
 parameters:
   train_envs:
     # values: ["CXP", "NIH", "PAD"]
-    values: ["CXP"]
+    values: ["MIMIC", "NIH", "PAD"]
   test_env:
-    values: ["MIMIC"]
+    values: ["CXP"]
   balance_resample:
-    values: ["none", "label,under"]
+    values: ["label,under"]
   binary_label:
     values: ["All"]
   seed:
     values: [0]
   label_shift:
-    values: [-1, 0.1, 0.2, 0.5, 0.8, 0.9]
+    values: [0.1, 0.2, 0.5, 0.8, 0.9]
   dataset_reduction_factor:
     values: [1, 5, 10]
   model_type:
-    # values: ["densenet201"]
     values: ["densenet121"]
   
   
