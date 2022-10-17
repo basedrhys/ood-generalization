@@ -9,14 +9,16 @@ class EarlyStopping:
         self.patience = patience
         self.counter = 0
         self.best_score = None
+        self.best_thresh = None
         self.early_stop = False
         self.step = 0
 
-    def __call__(self, val_loss, step, state_dict, path):  # lower loss is better
+    def __call__(self, val_loss, opt_thresh, step, state_dict, path):  # lower loss is better
         score = -val_loss 
 
         if self.best_score is None:
             self.best_score = score
+            self.best_thresh = opt_thresh
             self.step = step
             save_model(state_dict, path)
         elif score < self.best_score:
@@ -25,9 +27,10 @@ class EarlyStopping:
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
-            print(f"Saving better model with score: {score} at step {step}")
+            print(f"Saving better model with score: {score} and thresh: {opt_thresh} at step {step}")
             save_model(state_dict, path)
             self.best_score = score
+            self.best_thresh = opt_thresh
             self.step = step
             self.counter = 0
     

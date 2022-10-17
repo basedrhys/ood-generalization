@@ -48,7 +48,7 @@ def torch_bernoulli(p, size):
 def torch_xor(a, b):
     return (a-b).abs() # Assumes both inputs are either 0 or 1   
 
-def compute_opt_thres(target, pred):
+def compute_opt_thresh(target, pred):
     opt_thres = 0
     opt_f1 = 0
     for i in np.arange(0.05, 0.9, 0.01):
@@ -68,15 +68,20 @@ def tnr(target, pred):
     
     return TN/(TN + FP) if (TN + FP) > 0 else 0
 
-def binary_clf_metrics(preds, targets, grp, env_name, mask = None):
+def binary_clf_metrics(preds, targets, grp, env_name, orig_thresh=None, mask = None):
     if mask is not None:
         preds = preds[mask]
         targets = targets[mask]
         grp = grp[mask]
-    preds_rounded = np.round(preds)
-    opt_thres = compute_opt_thres(targets, preds)
 
-    preds_rounded_opt = (preds >= opt_thres)
+    opt_thresh = compute_opt_thresh(targets, preds)
+    if orig_thresh is not None:
+        actual_thresh = orig_thresh
+    else:
+        actual_thresh = opt_thresh
+    print(f"INFO: Optimal threshold: {opt_thresh}, using {actual_thresh}")
+
+    preds_rounded_opt = (preds >= actual_thresh)
     tpr_gap_opt = recall_score(targets[grp], preds_rounded_opt[grp], zero_division = 0) - recall_score(targets[~grp], preds_rounded_opt[~grp], zero_division = 0)
     tnr_gap_opt = tnr(targets[grp], preds_rounded_opt[grp]) - tnr(targets[~grp], preds_rounded_opt[~grp])
     parity_gap_opt = (preds_rounded_opt[grp].sum() / grp.sum()) - (preds_rounded_opt[~grp].sum() / (~grp).sum())    
@@ -90,7 +95,11 @@ def binary_clf_metrics(preds, targets, grp, env_name, mask = None):
            env_name + '_tpr_gap': tpr_gap_opt,
            env_name + '_tnr_gap': tnr_gap_opt,
            env_name + '_parity_gap': parity_gap_opt,
-           env_name + '_phi': phi_opt,}
+           env_name + '_phi': phi_opt,
+           env_name + '_opt_thresh': opt_thresh,
+           env_name + '_orig_thresh': orig_thresh,
+           env_name + '_actual_thresh': actual_thresh,
+           }
 
 class eICUBase():
     '''
@@ -359,7 +368,7 @@ class CXRBase():
     MAX_STEPS = 20000
     N_WORKERS = 2
     CHECKPOINT_FREQ = 100
-    ES_METRIC = 'roc'
+    ES_METRIC = 'f1'
     input_shape = None
     ES_PATIENCE = 10 #  * checkpoint_freq steps
     # TRAIN_ENVS = ['NIH', 'PAD']

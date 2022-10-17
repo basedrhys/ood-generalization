@@ -26,8 +26,6 @@ class EmbModel(nn.Module):
             self.encoder = nn.Sequential(*list(model.children())[:-1])
             self.emb_dim = list(model.children())[-1].in_features
 
-        print("Encoder:")
-        print(self.encoder)
         print("\nEmb Dim:")
         print(self.emb_dim)
             
