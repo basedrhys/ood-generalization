@@ -111,9 +111,18 @@ def process_PAD(split, only_frontal):
     return split[['subject_id','path','Sex',"Age", 'env', 'frontal','study_id'] + Constants.take_labels]
 
 
-def split(df, split_portions = (0.8, 0.9)):
+def split(df, split_portions = (0.8, 0.9), seed=0):
+    # We don't want the data splits to be affected by seed
+    # So lets temporarily set the seed to a static value...
+    rand_state = np.random.get_state()
+    np.random.seed(seed)
+
+    # Split our data (irrespective of the random seed provided in train.py)
     subject_df = pd.DataFrame({'subject_id': np.sort(df['subject_id'].unique())})
     subject_df['random_number'] = np.random.uniform(size=len(subject_df))
+
+    # ...then return the random state back to what it was
+    np.random.set_state(rand_state)
 
     train_id = subject_df[subject_df['random_number'] <= split_portions[0]].drop(columns=['random_number'])
     valid_id = subject_df[(subject_df['random_number'] > split_portions[0]) & (subject_df['random_number'] <= split_portions[1])].drop(columns=['random_number'])
