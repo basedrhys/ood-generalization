@@ -13,7 +13,7 @@ parameters:
     # values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
     values: ["none"]
   binary_label:
-    values: ["All", "Pneumonia"]
+    values: ["Cardiomegaly", "Edema",  "Effusion"]
   seed:
     values: [1, 2]
     # value: 1
