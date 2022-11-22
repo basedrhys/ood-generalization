@@ -2,24 +2,24 @@ program: ../ClinicalDG/clinicaldg/scripts/train.py
 project: ood-generalization
 entity: basedrhys
 method: grid
-name: "OOD Baseline"
+name: "Label Shift / Balancing"
 parameters:
   train_envs:
     values: ["MIMIC", "CXP", "NIH", "PAD", "MIMIC,CXP", "MIMIC,NIH", "MIMIC,PAD", "CXP,NIH", "CXP,PAD", "NIH,PAD"]
     # values: ["MIMIC", "CXP"]
   test_env:
-    # values: ["MIMIC", "CXP", "NIH", "PAD"]
-    values: ["MIMIC"]
+    values: ["MIMIC", "CXP", "NIH", "PAD"]
   balance_resample:
     # values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
-    values: ["none"]
+    values: ["label,under"]
   binary_label:
     values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
   seed:
-    # values: [0, 1, 2]
-    values: [0]
-    # value: 1
-  
+    values: [0]  
+  # label_shift:
+  #   values: [-1, 0.1, 0.2, 0.5, 0.8, 0.9]
+  # dataset_reduction_factor:
+    # values: [1, 5, 10]
 command:
   - /scratch/rc4499/envs_dirs/thesis/bin/python
   - ${program}

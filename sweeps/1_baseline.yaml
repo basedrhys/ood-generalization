@@ -17,7 +17,7 @@ parameters:
     values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
   seed:
     # values: [0, 1, 2]
-    values: [0]
+    values: [2]
     # value: 1
   
 command:
