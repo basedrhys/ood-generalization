@@ -121,9 +121,6 @@ def split(df, split_portions = (0.8, 0.9), seed=0):
     subject_df = pd.DataFrame({'subject_id': np.sort(df['subject_id'].unique())})
     subject_df['random_number'] = np.random.uniform(size=len(subject_df))
 
-    # ...then return the random state back to what it was
-    np.random.set_state(rand_state)
-
     train_id = subject_df[subject_df['random_number'] <= split_portions[0]].drop(columns=['random_number'])
     valid_id = subject_df[(subject_df['random_number'] > split_portions[0]) & (subject_df['random_number'] <= split_portions[1])].drop(columns=['random_number'])
     test_id = subject_df[subject_df['random_number'] > split_portions[1]].drop(columns=['random_number'])
@@ -131,6 +128,9 @@ def split(df, split_portions = (0.8, 0.9), seed=0):
     train_df = df[df.subject_id.isin(train_id.subject_id)]
     valid_df = df[df.subject_id.isin(valid_id.subject_id)]
     test_df = df[df.subject_id.isin(test_id.subject_id)]  
+
+    # ...then return the random state back to what it was
+    np.random.set_state(rand_state)
 
     return train_df, valid_df, test_df
 

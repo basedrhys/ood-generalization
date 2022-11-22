@@ -104,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument('--resample_method', choices = ['over', 'under'])
     parser.add_argument('--balance_resample')
     parser.add_argument('--num_instances', type=int)
-    parser.add_argument('--binary_label', type=str, default="Pneumonia", choices=["Pneumonia", "All"])
+    parser.add_argument('--binary_label', type=str, default="Pneumonia")
     parser.add_argument('--nurd_ratio', type=float)
     parser.add_argument('--img_size', default=224, type=int)
     parser.add_argument('--label_shift', type=float)
@@ -126,22 +126,24 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, default="/scratch/rc4499/thesis/output")
     parser.add_argument('--delete_model', action = 'store_true', 
         help = 'delete model weights after training to save disk space')
+    parser.add_argument('--job_id', type=int)
     args = parser.parse_args()
 
     args = post_parse_args(args)
 
     job_name = get_wandb_name(args)
 
-    job_id = os.environ["SLURM_JOB_ID"] if os.environ["SLURM_JOB_ID"] is not None else 99
+    job_id = os.environ["SLURM_JOB_ID"] if os.environ["SLURM_JOB_ID"] is not None else "9999"
     args.output_dir = os.path.join(args.output_dir, job_name + "-" + job_id)
-    print(f"SLURM JOB ID:", job_id)
+    args.job_id = job_id
+    print(f"SLURM JOB ID:", job_id, args.job_id)
     
     os.makedirs(args.output_dir, exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="thesis", 
+                job_type="3a_label_balancing", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)
