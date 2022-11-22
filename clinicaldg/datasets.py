@@ -52,7 +52,7 @@ def compute_opt_thresh(target, pred):
     opt_thres = 0
     opt_f1 = 0
     for i in np.arange(0.05, 0.9, 0.01):
-        f1 = f1_score(target, pred >= i)
+        f1 = f1_score(target, pred >= i, average="macro")
         if f1 >= opt_f1:
             opt_thres = i
             opt_f1 = f1
@@ -88,18 +88,23 @@ def binary_clf_metrics(preds, targets, grp, env_name, orig_thresh=None, mask = N
     phi_opt = matthews_corrcoef(preds_rounded_opt, grp)
     
     return {env_name + '_roc': roc_auc_score(targets, preds),
-           env_name + '_acc': accuracy_score(targets, preds_rounded_opt),
-           env_name + '_prec': precision_score(targets, preds_rounded_opt),
-           env_name + '_rec': recall_score(targets, preds_rounded_opt),
-           env_name + '_f1': f1_score(targets, preds_rounded_opt),
-           env_name + '_tpr_gap': tpr_gap_opt,
-           env_name + '_tnr_gap': tnr_gap_opt,
-           env_name + '_parity_gap': parity_gap_opt,
-           env_name + '_phi': phi_opt,
-           env_name + '_opt_thresh': opt_thresh,
-           env_name + '_orig_thresh': orig_thresh,
-           env_name + '_actual_thresh': actual_thresh,
+            env_name + '_acc': accuracy_score(targets, preds_rounded_opt),
+            env_name + '_prec': precision_score(targets, preds_rounded_opt, average="macro"),
+            env_name + '_rec': recall_score(targets, preds_rounded_opt, average="macro"),
+            env_name + '_f1': f1_score(targets, preds_rounded_opt, average="macro"),
+            env_name + '_prec_bin': precision_score(targets, preds_rounded_opt, average="binary"),
+            env_name + '_rec_bin': recall_score(targets, preds_rounded_opt, average="binary"),
+            env_name + '_f1_bin': f1_score(targets, preds_rounded_opt, average="binary"),
+            env_name + '_mcc': phi_opt,
+            env_name + '_opt_thresh': opt_thresh,
+            env_name + '_orig_thresh': orig_thresh,
+            env_name + '_actual_thresh': actual_thresh,
            }
+
+# env_name + '_tpr_gap': tpr_gap_opt,
+# env_name + '_tnr_gap': tnr_gap_opt,
+# env_name + '_parity_gap': parity_gap_opt,
+# env_name + '_phi': phi_opt,
 
 class eICUBase():
     '''
