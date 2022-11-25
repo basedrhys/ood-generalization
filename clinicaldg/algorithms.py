@@ -131,8 +131,11 @@ class ERM(Algorithm):
 
         return {'loss': loss.item()}
 
-    def predict(self, x):
-        return self.network(x)
+    def predict(self, x, emb_only=False):
+        if emb_only:
+            return self.featurizer(x)
+        else:
+            return self.network(x)
 
 
 class ERMID(ERM):

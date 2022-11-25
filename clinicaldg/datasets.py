@@ -553,7 +553,13 @@ class CXRBase():
             f"{log_str}-test_prop": test_split_prop,
             f"{log_str}-test_len": test_split_len,
         }
+        try:
         wandb.config.update(env_dict)
+        except Exception as e:
+            print("ERROR:")
+            print(e)
+            wandb.config.update(env_dict, allow_val_change=True)
+            
         print(json.dumps(env_dict, indent=True), end='\n\n')
 
     def create_combined_test_sets(self, seed):
@@ -627,14 +633,14 @@ class CXRBase():
                 self.dfs[self.TRAIN_ENVS[1]]["train"] = train_df_1_resampled
                 self.dfs[self.TRAIN_ENVS[1]]["val"] = val_df_1_resampled
 
-    def predict_on_set(self, algorithm, loader, device):
+    def predict_on_set(self, algorithm, loader, device, emb_only=False):
         preds, targets, genders = [], [], []
         algorithm.eval()
         meta_df = None
         with torch.no_grad():
             for x, y, meta in tqdm(loader):
                 x = misc.to_device(x, device)
-                logits = algorithm.predict(x)
+                logits = algorithm.predict(x, emb_only)
 
                 targets += y.detach().cpu().numpy().tolist()
                 genders += meta['Sex']
@@ -644,10 +650,14 @@ class CXRBase():
                 else:
                     meta_df = pd.concat([meta_df, tmp_df])
 
+                if not emb_only:
                 if y.ndim == 1 or y.shape[1] == 1: # multiclass
                     preds_list = torch.nn.Softmax(dim = 1)(logits)[:, 1].detach().cpu().numpy().tolist()
                 else: # multilabel
                     preds_list = torch.sigmoid(logits).detach().cpu().numpy().tolist()
+                else:
+                    preds_list = logits.detach().cpu().numpy().tolist()
+
                 if isinstance(preds_list, list):
                     preds += preds_list
                 else:
@@ -691,9 +701,12 @@ class CXR(CXRBase):
 class CXRBinary(CXRBase):
     num_classes = 2
         
-    def eval_metrics(self, algorithm, loader, env_name, weights, device, thresh):
-        preds, targets, genders, meta_df = self.predict_on_set(algorithm, loader, device)
+    def eval_metrics(self, algorithm, loader, env_name, weights, device, thresh, emb_only=False):
+        preds, targets, genders, meta_df = self.predict_on_set(algorithm, loader, device, emb_only)
         male = genders == 'M'        
+        if emb_only:
+            return meta_df
+        else:
         return binary_clf_metrics(preds, targets, male, env_name, orig_thresh=thresh), meta_df
     
     def get_torch_dataset(self, envs, dset, args):
