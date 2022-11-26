@@ -87,7 +87,12 @@ def binary_clf_metrics(preds, targets, grp, env_name, orig_thresh=None, mask = N
     parity_gap_opt = (preds_rounded_opt[grp].sum() / grp.sum()) - (preds_rounded_opt[~grp].sum() / (~grp).sum())    
     phi_opt = matthews_corrcoef(preds_rounded_opt, grp)
     
-    return {env_name + '_roc': roc_auc_score(targets, preds),
+    if len(np.unique(targets) == 1):
+        auroc = -1
+    else:
+        auroc = roc_auc_score(targets, preds)
+    
+    return {env_name + '_roc': auroc,
             env_name + '_acc': accuracy_score(targets, preds_rounded_opt),
             env_name + '_prec': precision_score(targets, preds_rounded_opt, average="macro"),
             env_name + '_rec': recall_score(targets, preds_rounded_opt, average="macro"),
