@@ -295,75 +295,13 @@ def balance_proportion(orig_df, new_prop, column, resample_method="over", seed=0
         print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
         df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=0)
         resampled_df = pd.concat([df_normal, df_diseased_rs])
-    #     if resample_class == 0:
-    #         new_num_normal = int(num_diseased / new_prop)
-    #         print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
-    #         df_normal_rs = df_normal.sample(new_num_normal, replace=True, random_state=seed)
-    #         resampled_df = pd.concat([df_normal_rs, df_diseased])
-    #     else:
-    #         # Resample the pneumonia class
-    #         new_num_diseased = int(new_prop * num_normal)
-    #         print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
-    #         df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=0)
-    #         resampled_df = pd.concat([df_normal, df_diseased_rs])
-    # if resample_method == "under":
-    #     if resample_class == 0:
-    #         new_num_normal = int(num_diseased / new_prop)
-    #         print(f"Resampling normal samples from {num_normal} to {new_num_normal}")
-    #         df_normal_rs = df_normal.sample(new_num_normal, replace=False, random_state=seed)
-    #         resampled_df = pd.concat([df_normal_rs, df_diseased])
-    #     else:
-    #         # Resample the pneumonia class
-    #         new_num_diseased = int(new_prop * num_normal)
-    #         print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")   
-    #         df_diseased_rs = df_diseased.sample(new_num_diseased, replace=False, random_state=0)
-    #         resampled_df = pd.concat([df_normal, df_diseased_rs])
              
     return resampled_df
-
-def create_imbalance(df_a: pd.DataFrame, df_b: pd.DataFrame, prop_a: float, disease_col: str, label_val: int, seed: int):
-    # Create 0.9 split for column == 0
-    df_a_label = df_a[df_a[disease_col] == label_val]
-    df_b_label = df_b[df_b[disease_col] == label_val]
-    num_total = int(len(df_a_label) / prop_a)
-    num_b = num_total - len(df_a_label)
-    print(f"LEN A:{label_val} = {len(df_a_label)}")
-    print(f"LEN B:{label_val} = {len(df_b_label)}")
-    print(f"NUM TOTAL: {num_total}, NUM_B: {num_b}")
-    df_b_label = df_b_label.sample(num_b, random_state=seed)
-
-    return df_a_label, df_b_label
 
 def is_diseased(row):
     # diseases = Constants.take_labels[1:]
     return int((row[Constants.take_labels[1:]]).sum() > 0)
 
-def balance_dfs(df_a_0, df_b_0, df_a_1, df_b_1):
-    # Balance p(Y=1)=0.5
-    # First attach the env label so we can split them back out later
-    df_a_0["TMP_ENV"] = "a"
-    df_b_0["TMP_ENV"] = "b"
-    df_a_1["TMP_ENV"] = "a"
-    df_b_1["TMP_ENV"] = "b"
-
-    # Join the dataframes by disease label
-    df_0 = pd.concat([df_a_0, df_b_0])
-    df_1 = pd.concat([df_a_1, df_b_1])
-
-    # Undersample one of them to match the other
-    if len(df_1) > len(df_0):
-        df_1 = df_1.sample(n=len(df_0))
-    else:
-        df_0 = df_0.sample(n=len(df_1))
-    
-    # Split them back into their constituent parts
-    df_a_0 = df_0[df_0["TMP_ENV"] == "a"]
-    df_b_0 = df_0[df_0["TMP_ENV"] == "b"]
-    df_a_1 = df_1[df_1["TMP_ENV"] == "a"]
-    df_b_1 = df_1[df_1["TMP_ENV"] == "b"]
-
-    return df_a_0, df_b_0, df_a_1, df_b_1
-            
 from os.path import exists
 def img_exists(path):
     return exists(path)
@@ -392,14 +330,14 @@ class CXRBase():
 
         # loads data with random splits
         self.dfs = {}
-        for split in cxrConstants.df_paths:
-            func = cxrProcess.get_process_func(split)
-            df_env = func(pd.read_csv(cxrConstants.df_paths[split]), only_frontal = True)
+        for data_env in cxrConstants.df_paths:
+            func = cxrProcess.get_process_func(data_env)
+            df_env = func(pd.read_csv(cxrConstants.df_paths[data_env]), only_frontal = True)
             df_env["img_exists"] = df_env["path"].apply(img_exists)
             df_env["All"] = df_env.apply(is_diseased, axis=1)
             df_env = df_env[df_env["img_exists"]]
             train_df, valid_df, test_df = cxrProcess.split(df_env)
-            self.dfs[split] = {
+            self.dfs[data_env] = {
                 'train': train_df,
                 'val': valid_df,
                 'test': test_df,
@@ -445,56 +383,28 @@ class CXRBase():
                 # print(f"New {train_env} val split prop: {get_prop(self.dfs[train_env]['val'], column=args.binary_label)}")
             print()
 
-        # if args.balance_method == "NURD":
-        #     assert len(self.TRAIN_ENVS) == 2, "NURD balancing can only be applied with 2 training environments"
-        #     env_a, env_b = self.TRAIN_ENVS
-        #     splits = ["train", "val", "test"]
-        #     labels = [(0, 1), (0, 1), (1, 0)]
-        #     for split, label in zip(splits, labels):
-        #         df_a, df_b = self.dfs[env_a][split], self.dfs[env_b][split]
-        #         df_a_0, df_b_0 = create_imbalance(df_a, df_b, args.nurd_ratio, args.binary_label, label[0], args.seed)
-        #         df_b_1, df_a_1  = create_imbalance(df_b, df_a, args.nurd_ratio, args.binary_label, label[1], args.seed)
+        # Create auxiliary test sets
+        self.create_nurd_test_sets(args.binary_label)
 
-        #         cols = ["subject_id", "path", args.binary_label]
-        #         print("\n\nSPLIT=", split)
-        #         print(f"NEW DF_A_{label[0]}=", len(df_a_0))
-        #         # print(df_a_0[cols])
+        if args.balance_method == "NURD":
+            assert len(self.TRAIN_ENVS) == 2, "NURD imbalancing can only be applied with 2 training environments"
+            env_a, env_b = self.TRAIN_ENVS
+            # splits = ["train", "val", "test"]
+            # match_ratio = [True, True, False]
+            splits = ["train", "val", "test"]
+            flip_ratio = [False, False, True]
+            print("Beginning NURD imbalancing on train/val sets with ratio =", args.nurd_ratio)
+            label = args.binary_label
+            for data_env, flip in zip(splits, flip_ratio):
+                df_a, df_b = self.dfs[env_a][data_env], self.dfs[env_b][data_env]
 
-        #         print(f"NEW DF_B_{label[0]}=", len(df_b_0))
-        #         # print(df_b_0[cols])
+                if not flip:
+                    df_a, df_b = self.nurd_imbalance(df_a, df_b, label, args.nurd_ratio)
+                else:
+                    df_a, df_b = self.nurd_imbalance(df_a, df_b, label, 1 - args.nurd_ratio)
 
-        #         print(f"NEW DF_A_{label[1]}=", len(df_a_1))
-        #         # print(df_a_1[cols])
-
-        #         print(f"NEW DF_B_{label[1]}=", len(df_b_1))
-        #         # print(df_b_1[cols])
-
-        #         df_a_0, df_b_0, df_a_1, df_b_1 = balance_dfs(df_a_0, df_b_0, df_a_1, df_b_1)
-
-        #         print(f"NEW DF_A_{label[0]}=", len(df_a_0))
-        #         # print(df_a_0[cols])
-
-        #         print(f"NEW DF_B_{label[0]}=", len(df_b_0))
-        #         # print(df_b_0[cols])
-
-        #         print(f"NEW DF_A_{label[1]}=", len(df_a_1))
-        #         # print(df_a_1[cols])
-
-        #         print(f"NEW DF_B_{label[1]}=", len(df_b_1))
-        #         # print(df_b_1[cols])
-
-        #         df_a = pd.concat([df_a_0, df_a_1]).sample(frac=1, random_state=args.seed).reset_index(drop=True)
-        #         df_b = pd.concat([df_b_0, df_b_1]).sample(frac=1, random_state=args.seed).reset_index(drop=True)
-
-        #         # # Undersample the bigger one to have the same proportion
-        #         # if len(df_a) > len(df_b):
-        #         #     df_a = df_a.sample(n=len(df_b), random_state=args.seed)
-        #         # else:
-        #         #     df_b = df_b.sample(n=len(df_a), random_state=args.seed)
-
-
-        #         self.dfs[env_a][split] = df_a
-        #         self.dfs[env_b][split] = df_b
+                self.dfs[env_a][data_env] = df_a
+                self.dfs[env_b][data_env] = df_b
         
         if args.balance_method in ["label+size", "uniform"]:
             self.balance_size(args.resample_method, args.seed)
@@ -518,12 +428,39 @@ class CXRBase():
                 self.dfs[train_env]["train"] = train_df
                 self.dfs[train_env]["val"] = val_df
 
-        # Create auxiliary test sets
-        self.create_combined_test_sets(args.seed)
         self.create_synthetic_bal_test_sets(args.binary_label, args.seed)
     
         print("\nFINAL CHECK")
         self.log_dfs(is_original=False, binary_label=args.binary_label)
+
+    def nurd_imbalance(self, df_a, df_b, label, ratio):
+        df_a_pos = df_a[df_a[label] == 1.0]
+        df_a_neg = df_a[df_a[label] == 0.0]
+
+        df_b_pos = df_b[df_b[label] == 1.0]
+        df_b_neg = df_b[df_b[label] == 0.0]
+
+        # Get the minimum size of all subsets
+        min_size = int(min(len(df_a_pos), len(df_a_neg), len(df_b_pos), len(df_b_neg)))
+
+        # Undersample all parts to have same size as the minimum
+        df_a_pos = df_a_pos.sample(n = min_size, random_state=0)
+        df_a_neg = df_a_neg.sample(n = min_size, random_state=0)
+
+        df_b_pos = df_b_pos.sample(n = min_size, random_state=0)
+        df_b_neg = df_b_neg.sample(n = min_size, random_state=0)
+
+        # Sample <ratio> from a_pos, 1-<ratio> from a_neg, 1-<ratio> from b_pos, ratio from b_neg
+        df_a_pos = df_a_pos.sample(frac=ratio, random_state=0)
+        df_a_neg = df_a_neg.sample(frac=1 - ratio, random_state=0)
+
+        df_b_pos = df_b_pos.sample(frac=1 - ratio, random_state=0)
+        df_b_neg = df_b_neg.sample(frac=ratio, random_state=0)
+
+        df_a = pd.concat([df_a_pos, df_a_neg]).sample(frac=1, random_state=0).reset_index(drop=True)
+        df_b = pd.concat([df_b_pos, df_b_neg]).sample(frac=1, random_state=0).reset_index(drop=True)
+
+        return df_a, df_b
 
     def log_dfs(self, is_original, binary_label):
         prefix_str = "orig-" if is_original else ""
@@ -559,7 +496,7 @@ class CXRBase():
             f"{log_str}-test_len": test_split_len,
         }
         try:
-        wandb.config.update(env_dict)
+            wandb.config.update(env_dict)
         except Exception as e:
             print("ERROR:")
             print(e)
@@ -567,25 +504,46 @@ class CXRBase():
             
         print(json.dumps(env_dict, indent=True), end='\n\n')
 
-    def create_combined_test_sets(self, seed):
+    def create_nurd_test_sets(self, label):
         if len(self.TRAIN_ENVS) < 2:
             return
 
-        train_env_0, train_env_1 = self.TRAIN_ENVS
-        test_df_0, test_df_1 = self.dfs[train_env_0]['test'], self.dfs[train_env_1]['test']
-        if len(test_df_0) > len(test_df_1):
-            # Balance 0 down to 1
-            print(f"COMBINING: Balancing env 0 test set ({len(test_df_0)}) down to env 1 ({len(test_df_1)})")
-            test_df_0 = test_df_0.sample(len(test_df_1), random_state=seed)
-        else:
-            # Balance 1 down to 0
-            print(f"COMBINING: Balancing env 1 test set({len(test_df_1)}) down to env 0 ({len(test_df_0)})")
-            test_df_1 = test_df_1.sample(len(test_df_0), random_state=seed)
+        env_a, env_b = self.TRAIN_ENVS
+        self.dfs["NURD"] = {}
+        print("################# NURD IMBALANCING #################")
 
-        test_df_comb = pd.concat([test_df_0, test_df_1]).sample(frac=1, random_state=seed).reset_index()
+        for ratio in Constants.NURD_RATIOS:
+            print("\tRATIO:", ratio)
+            df_a, df_b = self.dfs[env_a]["test"].copy(deep=True), self.dfs[env_b]["test"].copy(deep=True)
 
-        for env in self.ENVIRONMENTS:
-            self.dfs[env]['test_combined'] = test_df_comb.copy(deep=True)
+            df_a_nurd, df_b_nurd = self.nurd_imbalance(df_a, df_b, label, ratio)
+
+            print("DF A Imbalance:", get_prop(df_a_nurd, column=label))
+            print("DF B Imbalance:", get_prop(df_b_nurd, column=label))
+
+            assert len(df_a_nurd) == len(df_b_nurd)
+            
+            df_comb = pd.concat([df_a_nurd, df_b_nurd]).sample(frac=1, random_state=0).reset_index()
+
+            print("DF Combined imbalance:", get_prop(df_comb, column=label), end="\n\n")
+
+            self.dfs["NURD"][f"test_{ratio}"] = df_comb
+
+        # train_env_0, train_env_1 = self.TRAIN_ENVS
+        # test_df_0, test_df_1 = self.dfs[train_env_0]['test'], self.dfs[train_env_1]['test']
+        # if len(test_df_0) > len(test_df_1):
+        #     # Balance 0 down to 1
+        #     print(f"COMBINING: Balancing env 0 test set ({len(test_df_0)}) down to env 1 ({len(test_df_1)})")
+        #     test_df_0 = test_df_0.sample(len(test_df_1), random_state=seed)
+        # else:
+        #     # Balance 1 down to 0
+        #     print(f"COMBINING: Balancing env 1 test set({len(test_df_1)}) down to env 0 ({len(test_df_0)})")
+        #     test_df_1 = test_df_1.sample(len(test_df_0), random_state=seed)
+
+        # test_df_comb = pd.concat([test_df_0, test_df_1]).reset_index()
+
+        # # for env in self.ENVIRONMENTS:
+        # self.dfs["MIMIC"]['test_combined'] = test_df_comb.copy(deep=True)
 
     def create_synthetic_bal_test_sets(self, binary_label, seed):
         env = self.TEST_ENV
@@ -656,10 +614,10 @@ class CXRBase():
                     meta_df = pd.concat([meta_df, tmp_df])
 
                 if not emb_only:
-                if y.ndim == 1 or y.shape[1] == 1: # multiclass
-                    preds_list = torch.nn.Softmax(dim = 1)(logits)[:, 1].detach().cpu().numpy().tolist()
-                else: # multilabel
-                    preds_list = torch.sigmoid(logits).detach().cpu().numpy().tolist()
+                    if y.ndim == 1 or y.shape[1] == 1: # multiclass
+                        preds_list = torch.nn.Softmax(dim = 1)(logits)[:, 1].detach().cpu().numpy().tolist()
+                    else: # multilabel
+                        preds_list = torch.sigmoid(logits).detach().cpu().numpy().tolist()
                 else:
                     preds_list = logits.detach().cpu().numpy().tolist()
 
@@ -712,7 +670,7 @@ class CXRBinary(CXRBase):
         if emb_only:
             return meta_df
         else:
-        return binary_clf_metrics(preds, targets, male, env_name, orig_thresh=thresh), meta_df
+            return binary_clf_metrics(preds, targets, male, env_name, orig_thresh=thresh), meta_df
     
     def get_torch_dataset(self, envs, dset, args):
         augment = 0 if dset in ['val', 'test'] else self.hparams['cxr_augment']    

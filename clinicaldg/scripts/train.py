@@ -21,6 +21,7 @@ from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 import wandb
 import json
+from datetime import datetime
 
 sys.path.append("/scratch/rc4499/thesis/ood-generalization/ClinicalDG")
 
@@ -30,12 +31,12 @@ from clinicaldg import algorithms
 from clinicaldg.lib import misc
 from clinicaldg.lib.fast_data_loader import InfiniteDataLoader, FastDataLoader
 from clinicaldg.utils import EarlyStopping, has_checkpoint, load_checkpoint, save_checkpoint, get_wandb_name
-from clinicaldg.cxr.Constants import LABEL_SHIFTS
+from clinicaldg.cxr.Constants import LABEL_SHIFTS, NURD_RATIOS
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 def run_testing(dataset, split_name, environments, args, algorithm, device, bs, thresh):
-    print(f"TEST: Running on split: {split_name} for environments: {environments}")
+    print(f"TEST ({datetime.now()}): Running on split: {split_name} for environments: {environments}")
     test_loader = {env:
         FastDataLoader(
         dataset=dataset.get_torch_dataset([env], split_name, args),
@@ -143,7 +144,7 @@ if __name__ == "__main__":
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="3a_label_balancing", 
+                job_type="2c_spurious_correlations", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)
@@ -404,27 +405,29 @@ if __name__ == "__main__":
         bs=hparams["batch_size"]*4,
         thresh=opt_thresh)
 
-    for shift in LABEL_SHIFTS:
-        save_dict[f'test_{shift}'] = run_testing(
-            dataset=dataset,
-            split_name=f"test_{shift}",
-            environments=[dataset.TEST_ENV],
-            args=args,
-            algorithm=algorithm,
-            device=device,
-            bs=hparams["batch_size"]*4,
-            thresh=opt_thresh)
+    if args.balance_method != "NURD":
+        for shift in LABEL_SHIFTS:
+            save_dict[f'test_{shift}'] = run_testing(
+                dataset=dataset,
+                split_name=f"test_{shift}",
+                environments=[dataset.TEST_ENV],
+                args=args,
+                algorithm=algorithm,
+                device=device,
+                bs=hparams["batch_size"]*4,
+                thresh=opt_thresh)
 
-    if len(dataset.TRAIN_ENVS) > 1: # TODO figure out why results differ slightly
-        save_dict['test_comb'] = run_testing(
-            dataset=dataset,
-            split_name="test_combined",
-            environments=["MIMIC"],
-            args=args,
-            algorithm=algorithm,
-            device=device,
-            bs=hparams["batch_size"]*4,
-            thresh=opt_thresh)
+    if len(dataset.TRAIN_ENVS) == 2:
+        for ratio in NURD_RATIOS:
+            save_dict[f'test_nurd_{ratio}'] = run_testing(
+                dataset=dataset,
+                split_name=f"test_{ratio}",
+                environments=["NURD"],
+                args=args,
+                algorithm=algorithm,
+                device=device,
+                bs=hparams["batch_size"]*4,
+                thresh=opt_thresh)
     
     print("Finished final evaluation:")
     print(json.dumps(save_dict, indent=True))

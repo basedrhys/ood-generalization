@@ -21,7 +21,7 @@ class EarlyStopping:
             self.best_thresh = opt_thresh
             self.step = step
             save_model(state_dict, path)
-        elif score < self.best_score:
+        elif score <= self.best_score:
             self.counter += 1
             print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
@@ -73,5 +73,8 @@ def get_wandb_name(args):
     train_env_1 = args.train_env_1 if args.train_env_1 else ""
     balance = args.balance_method
     resample = args.resample_method
-    shift = args.label_shift
-    return f"({train_env_0},{train_env_1})-test({args.test_env})-shift({shift})-bal({balance},{resample})"
+    disease = args.binary_label
+    # shift = args.label_shift
+    ratio = args.nurd_ratio
+    # return f"({train_env_0},{train_env_1})-test({args.test_env})-shift({shift})-bal({balance},{resample})"
+    return f"({train_env_0},{train_env_1})-ratio({ratio})-disease({disease})"
