@@ -13,8 +13,8 @@ parameters:
     # values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
     values: ["label,under"]
   binary_label:
-    values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion"]
-    # values: ['Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+    # values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion"]
+    values: ['Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
   seed:
     values: [0]
   # label_shift:
