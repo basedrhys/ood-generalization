@@ -83,11 +83,11 @@ class ERM(Algorithm):
     Empirical Risk Minimization (ERM)
     """
 
-    def __init__(self, input_shape, num_classes, num_domains, hparams, dataset_name, dataset, model_type):
+    def __init__(self, input_shape, num_classes, num_domains, hparams, dataset_name, dataset, model_type, feature_size_override=None):
         super(ERM, self).__init__(input_shape, num_classes, num_domains,
                                   hparams)
-        print(f"INFO: Creating ERM with model type: {model_type}")
-        self.featurizer = networks.Featurizer(input_shape, self.hparams, dataset_name, dataset, model_type)
+        print(f"INFO: Creating ERM with model type: {model_type} and feature size override: {feature_size_override}")
+        self.featurizer = networks.Featurizer(input_shape, self.hparams, dataset_name, dataset, model_type, feature_size_override)
         self.classifier = nn.Linear(self.featurizer.n_outputs, num_classes)
         self.network = nn.Sequential(self.featurizer, self.classifier)
         self.optimizer = torch.optim.Adam(
@@ -95,6 +95,8 @@ class ERM(Algorithm):
             lr=self.hparams["lr"],
             weight_decay=self.hparams['weight_decay']
         )
+
+        self.logged_input_size = False
 
         wandb.config.update({"optimizer": type(self.optimizer).__name__})
 
@@ -135,7 +137,11 @@ class ERM(Algorithm):
         if emb_only:
             return self.featurizer(x)
         else:
-            return self.network(x)
+            if not self.logged_input_size:
+                print("Input size before passing to model:", x.size())
+                self.logged_input_size = True
+            out = self.network(x)
+            return out
 
 
 class ERMID(ERM):

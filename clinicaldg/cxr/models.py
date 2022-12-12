@@ -5,7 +5,7 @@ from torchvision import datasets, models, transforms
            
 
 class EmbModel(nn.Module):
-    def __init__(self, emb_type, pretrain, concat_features = 0):
+    def __init__(self, emb_type, feature_size_override, pretrain, concat_features = 0):
         super().__init__()
         self.emb_type = emb_type
         self.pretrain = pretrain
@@ -28,6 +28,11 @@ class EmbModel(nn.Module):
 
         print("\nEmb Dim:")
         print(self.emb_dim)
+
+        if feature_size_override:
+            print(f"Manually setting output dim to {feature_size_override}")
+            self.emb_dim = feature_size_override
+            print(self.emb_dim)
             
         self.n_outputs = self.emb_dim + concat_features      
         

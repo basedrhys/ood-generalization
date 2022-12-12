@@ -87,6 +87,27 @@ def post_parse_args(args):
     return args
 
 
+def get_feature_size_override(img_size, model_type):
+    feature_size_dict = {
+        "densenet121": {
+            64: 1024,
+            128: 1024,
+            256: 1024,
+            512: 4096,
+            800: 9216
+        },
+        "densenet201": {
+            64: 1920,
+            128: 1920,
+            256: 1920,
+            512: 7680,
+            800: 17280
+        }
+    }
+
+    return feature_size_dict[model_type][img_size]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Domain generalization')
     parser.add_argument('--dataset', type=str, default="CXRBinary")
@@ -144,7 +165,7 @@ if __name__ == "__main__":
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="2c_spurious_correlations", 
+                job_type="4_image_model_size", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)
@@ -281,9 +302,11 @@ if __name__ == "__main__":
         batch_size=hparams['batch_size']*4,
         num_workers=dataset.N_WORKERS)
 
+    feature_size_override = get_feature_size_override(args.img_size, args.model_type)
+
     algorithm_class = algorithms.get_algorithm_class(args.algorithm)
     algorithm = algorithm_class(dataset.input_shape, dataset.num_classes,
-        len(TRAIN_ENVS), hparams, args.dataset, dataset, args.model_type)
+        len(TRAIN_ENVS), hparams, args.dataset, dataset, args.model_type, feature_size_override=feature_size_override)
 
     algorithm.to(device)
     

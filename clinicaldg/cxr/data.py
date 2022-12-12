@@ -18,7 +18,7 @@ def get_dataset(dfs_all, img_size, envs = [], split = None, only_frontal = True,
     if augment == 1: # image augmentations
         image_transforms = [transforms.RandomHorizontalFlip(), 
                             transforms.RandomRotation(10),     
-                            transforms.RandomResizedCrop(size = 224, scale = (0.75, 1.0)),
+                            # transforms.RandomResizedCrop(size = img_size, scale = (0.75, 1.0)),
                         transforms.ToTensor()]
     elif augment == 0: 
         image_transforms = [transforms.ToTensor()]
@@ -64,6 +64,14 @@ class AllDatasetsShared(Dataset):
         self.cache_dir = Path(cache_dir)
         self.subset_label = subset_label # (str) select one label instead of returning all Constants.take_labels
         self.img_size=img_size
+
+        resize_trnf = [transforms.Resize(size = [self.img_size, self.img_size])]
+        if self.img_size < 256:
+            resize_trnf.append(transforms.Resize(size = [256, 256]))
+        self.resize_trnf = transforms.Compose(resize_trnf)
+
+        print("Built resize transform:", self.resize_trnf)
+
         print(f"Created dataset with subset label={self.subset_label}, images of size={self.img_size}")
 
     def get_cache_path(self, cache_dir, meta):
@@ -117,13 +125,12 @@ class AllDatasetsShared(Dataset):
                 img = np.concatenate([img, img, img], axis=2) 
 
             img = Image.fromarray(img)
-            tmp_transforms = [transforms.Resize(size = [self.img_size, self.img_size])]
-            pad_len = 224 - self.img_size
-            if pad_len > 0:
-                side_pad_len = int(pad_len / 2)
-                tmp_transforms.append(transforms.Pad(side_pad_len))
-            img = transforms.Compose(tmp_transforms)(img)
 
+            # pad_len = 224 - self.img_size
+            # if pad_len > 0:
+            #     side_pad_len = int(pad_len / 2)
+            #     tmp_transforms.append(transforms.Pad(side_pad_len))
+            img = self.resize_trnf(img)
             disease_labels = Constants.take_labels + ["All"]
             label = torch.FloatTensor(np.zeros(len(disease_labels), dtype=float))
             for i in range(0, len(disease_labels)):
@@ -144,7 +151,7 @@ class AllDatasetsShared(Dataset):
         # Apply the actual label
         if self.subset_label:
             label = int(label[disease_labels.index(self.subset_label)])
-                
+        
         return img, label, meta
             
 

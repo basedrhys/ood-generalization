@@ -87,7 +87,7 @@ def binary_clf_metrics(preds, targets, grp, env_name, orig_thresh=None, mask = N
     parity_gap_opt = (preds_rounded_opt[grp].sum() / grp.sum()) - (preds_rounded_opt[~grp].sum() / (~grp).sum())    
     phi_opt = matthews_corrcoef(preds_rounded_opt, grp)
     
-    if len(np.unique(targets) == 1):
+    if len(np.unique(targets)) == 1:
         auroc = -1
     else:
         auroc = roc_auc_score(targets, preds)
@@ -336,6 +336,7 @@ class CXRBase():
             df_env["img_exists"] = df_env["path"].apply(img_exists)
             df_env["All"] = df_env.apply(is_diseased, axis=1)
             df_env = df_env[df_env["img_exists"]]
+            df_env[args.binary_label] = df_env[args.binary_label].fillna(0).astype(int)
             train_df, valid_df, test_df = cxrProcess.split(df_env)
             self.dfs[data_env] = {
                 'train': train_df,

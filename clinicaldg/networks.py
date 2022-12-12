@@ -33,7 +33,7 @@ class MLP(nn.Module):
         return x
 
 
-def Featurizer(input_shape, hparams, dataset_name, dataset, model_type):
+def Featurizer(input_shape, hparams, dataset_name, dataset, model_type, feature_size_override):
     """Auto-select an appropriate featurizer for the given dataset."""
     if dataset_name == 'ColoredMNIST':
         return MLP(input_shape[0], 128, hparams)
@@ -46,6 +46,6 @@ def Featurizer(input_shape, hparams, dataset_name, dataset, model_type):
                                             dropout_p = hparams['mlp_dropout'])
     elif dataset_name[:3] == 'CXR':
         print(f"INFO: Creating CXR featurizer with model type: {model_type}")
-        return cxrModels.EmbModel(model_type, pretrain = True, concat_features = 1 if dataset_name == 'CXRSubsampleObs' else 0)
+        return cxrModels.EmbModel(model_type, feature_size_override, pretrain = True, concat_features = 1 if dataset_name == 'CXRSubsampleObs' else 0)
     else:
         raise NotImplementedError
