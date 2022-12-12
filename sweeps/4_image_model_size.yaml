@@ -1,0 +1,29 @@
+program: ../ClinicalDG/clinicaldg/scripts/train.py
+project: ood-generalization
+entity: basedrhys
+method: grid
+name: "4 - Image / Model Size"
+parameters:
+  train_envs:
+    values: ["MIMIC", "CXP", "NIH", "PAD"]
+    # values: ["CXP"]
+  test_env:
+    values: ["MIMIC"]
+  balance_resample:
+    values: ["none"]
+  binary_label:
+    values: ["Pneumonia", "Cardiomegaly", "Edema",  "Effusion", 'Consolidation']
+  seed:
+    values: [0]
+  img_size:
+    # values: [64, 128, 256, 512, 800]
+    values: [64, 128]
+  model_type:
+    values: ["densenet121", "densenet201"]
+    
+command:
+  - /scratch/rc4499/envs_dirs/thesis/bin/python
+  - ${program}
+  - "--hparams"
+  - '{"batch_size": 32}'
+  - ${args}

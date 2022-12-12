@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=grid_search
-#SBATCH --output=./out/%j-2c_NURD.out
-#SBATCH --array=0-330%20
+#SBATCH --job-name=image_size
+#SBATCH --output=./out/%j-4_image_size.out
+#SBATCH --array=0-54%15
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=48GB
 #SBATCH --time=5:30:00
@@ -23,5 +23,5 @@ singularity exec --nv \
 source /ext3/env.sh
 conda activate thesis
 cd /scratch/rc4499/thesis/ood-generalization/ClinicalDG
-wandb agent --count 1 basedrhys/ood-generalization/mzpeg7ky
+wandb agent --count 1 basedrhys/ood-generalization/g4xoponb
 "
