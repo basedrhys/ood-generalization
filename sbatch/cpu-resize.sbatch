@@ -3,9 +3,9 @@
 #SBATCH --nodes=1
 #SBATCH --job-name=cpu-resize
 #SBATCH --output=./out/cpu-resize_%j.out
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=8GB
-#SBATCH --time=18:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=48GB
+#SBATCH --time=24:00:00
 
 module purge
 module load anaconda3/2020.07
@@ -22,7 +22,9 @@ singularity exec --nv \
 source /ext3/env.sh
 conda activate thesis
 python resize_imgs.py 0 &
+python resize_imgs.py 1 &
 python resize_imgs.py 2 &
+python resize_imgs.py 3 &
 
 wait
 
@@ -32,5 +34,5 @@ echo 'Finished waiting for all'
 cd resized
 
 for a in *; do
-	mksquashfs $a $a-224.sqf -processors 4 -keep-as-directory;
+	mksquashfs $a $a-800.sqf -processors 8 -keep-as-directory;
 done

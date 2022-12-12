@@ -14,7 +14,8 @@ parameters:
     # values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
     values: ["NURD,under"]
   binary_label:
-    values: ["All", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+    # values: ["All", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+    values: ["No Finding", 'Atelectasis', 'Pneumothorax']
     # values: ["Pneumonia", "Cardiomegaly", "Edema",  "Effusion"]
     # values: ["Pneumonia", "Cardiomegaly", "Edema",  "Effusion", "All", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
     # values: ["Cardiomegaly", "Edema",  "Effusion", 'Pneumothorax', 'Consolidation', "No Finding"]

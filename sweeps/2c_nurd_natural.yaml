@@ -1,0 +1,28 @@
+program: ../ClinicalDG/clinicaldg/scripts/train.py
+project: ood-generalization
+entity: basedrhys
+method: grid
+name: "NURD Natural"
+parameters:
+  train_envs:
+    values: ["MIMIC,CXP", "MIMIC,NIH", "MIMIC,PAD", "CXP,NIH", "CXP,PAD", "NIH,PAD"]
+    # values: ["MIMIC", "CXP"]
+  test_env:
+    # values: ["MIMIC", "CXP", "NIH", "PAD"]
+    values: ["MIMIC"]
+  balance_resample:
+    # values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
+    values: ["none"]
+  binary_label:
+    values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+  seed:
+    # values: [0, 1, 2]
+    values: [0]
+    # value: 1
+  
+command:
+  - /scratch/rc4499/envs_dirs/thesis/bin/python
+  - ${program}
+  - "--max_steps"
+  - "20001"
+  - ${args}

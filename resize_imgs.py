@@ -13,17 +13,14 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 input_transform = T.Compose([
-    T.Resize((224, 224)),
+    T.Resize((800, 800)),
                                 ])        
 
-csvs = ['processed/padchest.csv', 
-'processed/chestxray8.csv', 
-'processed/mimic-cxr.csv', 
-'processed/CheXpert-v1.0.csv']
-# pbar = tqdm(glob.glob("processed/*"))
-# for csv in pbar:
+csvs = ['processed/PAD.csv', 
+'processed/NIH.csv', 
+'processed/MIMIC.csv', 
+'processed/CXP.csv']
 
-    # pbar.set_postfix({"data": csv})
 index = int(sys.argv[1])
 csv = csvs[index]
 print(f"Operating on index: {index}, {csv}")
@@ -49,8 +46,5 @@ for p in tqdm(df["path"]):
         print()
         print(p)
         print(e)
-
-    # Save result
-    # save_image(final, f"{new_dir}/{os.path.basename(p)}")
 
 print(f"Finished index: {index}, {csv}")
