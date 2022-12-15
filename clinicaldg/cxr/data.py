@@ -66,8 +66,8 @@ class AllDatasetsShared(Dataset):
         self.img_size=img_size
 
         resize_trnf = [transforms.Resize(size = [self.img_size, self.img_size])]
-        if self.img_size < 256:
-            resize_trnf.append(transforms.Resize(size = [256, 256]))
+        # if self.img_size < 224:
+            # resize_trnf.append(transforms.Resize(size = [256, 256]))
         self.resize_trnf = transforms.Compose(resize_trnf)
 
         print("Built resize transform:", self.resize_trnf)

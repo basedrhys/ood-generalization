@@ -92,6 +92,7 @@ def get_feature_size_override(img_size, model_type):
         "densenet121": {
             64: 1024,
             128: 1024,
+            224: 1024,
             256: 1024,
             512: 4096,
             800: 9216
@@ -122,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument('--val_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], default="NIH")
     parser.add_argument('--test_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], default="PAD")
 
-    parser.add_argument('--balance_method', choices = ['label', 'label+size', 'uniform', 'NURD'])
+    parser.add_argument('--balance_method', choices = ['label', 'label+size', 'uniform', 'NURD', 'label_notest'])
     parser.add_argument('--resample_method', choices = ['over', 'under'])
     parser.add_argument('--balance_resample')
     parser.add_argument('--num_instances', type=int)
@@ -165,7 +166,7 @@ if __name__ == "__main__":
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="4_image_model_size", 
+                job_type="2d_nurd_fix", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)
