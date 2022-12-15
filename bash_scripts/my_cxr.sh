@@ -1,0 +1,14 @@
+python -m clinicaldg.scripts.train \
+    --output_dir /scratch/rc4499/thesis/output \
+    --wandb_name $1 \
+    --es_method train \
+    --algorithm ERMMerged \
+    --delete_model \
+    --max_steps 20000 \
+    --checkpoint_freq 500 \
+    --train_env_0 NIH \
+    --train_env_1 PAD \
+    --val_env MIMIC \
+    --test_env CXP \
+    --balance_method none \
+    --hparams '{"batch_size": 128, "lr": 0.0001}'
