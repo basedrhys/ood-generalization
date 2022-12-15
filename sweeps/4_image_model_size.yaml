@@ -6,7 +6,6 @@ name: "4 - Image / Model Size"
 parameters:
   train_envs:
     values: ["MIMIC", "CXP", "NIH", "PAD"]
-    # values: ["CXP"]
   test_env:
     values: ["MIMIC"]
   balance_resample:
@@ -16,8 +15,8 @@ parameters:
   seed:
     values: [0]
   img_size:
-    # values: [64, 128, 256, 512, 800]
-    values: [64, 128]
+    values: [256, 512]
+    # values: [64, 128]
   model_type:
     values: ["densenet121", "densenet201"]
     

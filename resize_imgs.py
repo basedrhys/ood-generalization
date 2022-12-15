@@ -31,7 +31,7 @@ for p in tqdm(df["path"]):
     # print(f"({i}/{total}")
     # img = Image.open(p).convert('RGBA')
     try: 
-        new_dir = f"resized/{os.path.dirname(p)}"
+        new_dir = f"/vast/rc4499/resized/{os.path.dirname(p)}"
         new_filepath = f"{new_dir}/{os.path.basename(p)}"
         if os.path.exists(new_filepath):
             continue

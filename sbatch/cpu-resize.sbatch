@@ -31,7 +31,7 @@ wait
 echo 'Finished waiting for all'
 "
 
-cd resized
+cd /vast/rc4499/resized
 
 for a in *; do
 	mksquashfs $a $a-800.sqf -processors 8 -keep-as-directory;
