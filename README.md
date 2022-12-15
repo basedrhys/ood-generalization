@@ -1,36 +1,16 @@
-# An Empirical Framework for Domain Generalization In Clinical Settings
+# The Effect of Image Size and Model Capacity on Chest X-Ray Disease Classification Performance
 
-## Paper
-If you use this code in your research, please cite the following publication:
-```
-@inproceedings{zhang2021empirical,
-  title={An empirical framework for domain generalization in clinical settings},
-  author={Zhang, Haoran and Dullerud, Natalie and Seyyed-Kalantari, Laleh and Morris, Quaid and Joshi, Shalmali and Ghassemi, Marzyeh},
-  booktitle={Proceedings of the Conference on Health, Inference, and Learning},
-  pages={279--290},
-  year={2021}
-}
-```
-
-This paper can also be found on arxiv: https://arxiv.org/abs/2103.11163 
-
+This is the code for [Paper name](#).
 
 ## Acknowledgements
 
-Our implementation is a modified version of the excellent [DomainBed](https://github.com/facebookresearch/DomainBed) framework (from commit [a10458a](https://github.com/facebookresearch/DomainBed/tree/a10458a2adfd8aec0fda2d617f710e5044e5dc60)). We also make use of some code from [eICU Benchmarks](https://github.com/mostafaalishahi/eICU_Benchmark).
-
+The training harness is heavily based on the excellent [ClinicalDG](https://github.com/MLforHealth/ClinicalDG) repo which is in turn a modified version of [DomainBed](https://github.com/facebookresearch/DomainBed).
 
 ## To replicate the experiments in the paper:
 
 ### Step 0: Environment and Prerequisites
 Run the following commands to clone this repo and create the Conda environment:
 
-```
-git clone https://github.com/MLforHealth/ClinicalDG.git
-cd ClinicalDG/
-conda env create -f environment.yml
-conda activate clinicaldg
-```
 
 ### Step 1: Obtaining the Data
 See [DataSources.md](DataSources.md) for detailed instructions.
@@ -49,28 +29,9 @@ python -m clinicaldg.scripts.train\
        --output_dir /path/to/output
 ```
 
-To sweep a range of datasets, algorithms, and hyperparameters:
-```
-python -m clinicaldg.scripts.sweep launch\
-       --output_dir=/my/sweep/output/path\
-       --command_launcher slurm\
-       --algorithms ERMID ERM IRM VREx RVP IGA CORAL MLDG GroupDRO \
-       --datasets CXR CXRBinary\
-       --n_hparams 10\
-       --n_trials 5\
-       --es_method train\
-       --hparams '{"cxr_augment": 1}'
-```
-
 A detailed list of `hparams` available for each dataset can be found [here](hparams.md).
 
 We provide the bash scripts used for our main experiments in the `bash_scripts` directory. You will likely need to customize them, along with the launcher, to your compute environment.
-
-### Step 3: Aggregating Results
-
-We provide sample code for creating aggregate results for an experiment in `notebooks/AggResults.ipynb`.
-
-
 
 ## License
 This source code is released under the MIT license, included [here](LICENSE).
