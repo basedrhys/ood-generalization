@@ -356,17 +356,25 @@ class CXRBase():
                 self.dfs[train_env]["train_orig"] = copy.deepcopy(train_df)
                 self.dfs[train_env]["val_orig"] = copy.deepcopy(val_df)
 
-        if args.balance_method in ["label", "label+size", "uniform"]:
+        if args.balance_method in ["label", "label+size", "uniform", "label_notest"]:
             print("Beginning label balancing")
             # Lets balance the label proportion of all training environments to match the test environment
             test_df = self.dfs[self.TEST_ENV]["train"] # use the train split as its larger and so less variable with seeds
             print("Label balancing... args.label_shift:",args.label_shift)
-            if args.label_shift is None or args.label_shift == -1:
-                target_prop = get_prop(test_df, column=args.binary_label)
-                print(f"Target prop: getting proportion from test df: {target_prop}")
+
+            if args.balance_method != 'label_notest':
+                if args.label_shift is None or args.label_shift == -1:
+                    target_prop = get_prop(test_df, column=args.binary_label)
+                    print(f"Target prop: getting proportion from test df: {target_prop}")
+                else:
+                    target_prop = args.label_shift
+                    print(f"Target prop: getting proportion from label shift arg: {target_prop}")
             else:
-                target_prop = args.label_shift
-                print(f"Target prop: getting proportion from label shift arg: {target_prop}")
+                assert len(self.TRAIN_ENVS) == 2, "Label balancing without test can only be applied with 2 training environments"
+                df_trn_0, df_trn_1 = self.dfs[self.TRAIN_ENVS[0]]["train"], self.dfs[self.TRAIN_ENVS[1]]["train"]
+                prop0, prop1 = get_prop(df_trn_0, column=args.binary_label), get_prop(df_trn_1, column=args.binary_label)
+                target_prop = max(prop0, prop1)
+                print(f"Target prop: Using the larger of the two training environments ({prop0}, {prop1}): {target_prop}")
 
             for i, train_env in enumerate(self.TRAIN_ENVS):
                 train_df = self.dfs[train_env]["train"]
