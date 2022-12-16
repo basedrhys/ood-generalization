@@ -23,6 +23,6 @@ singularity exec --nv \
 	/bin/bash -c "
 source /ext3/env.sh
 conda activate thesis
-cd /scratch/rc4499/thesis/ood-generalization/ClinicalDG
+cd /scratch/rc4499/thesis/ood-generalization
 python -m clinicaldg.scripts.eval --num_tasks_total 9 --task_id $SLURM_ARRAY_TASK_ID --csv_file /scratch/rc4499/thesis/ood-generalization/1_baseline_EVAL-wandb_export_2022-11-22T17_52_23.068-05_00.csv
 "

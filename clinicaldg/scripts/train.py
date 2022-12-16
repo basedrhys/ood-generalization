@@ -23,7 +23,7 @@ import wandb
 import json
 from datetime import datetime
 
-sys.path.append("/scratch/rc4499/thesis/ood-generalization/ClinicalDG")
+sys.path.append("/scratch/rc4499/thesis/ood-generalization")
 
 from clinicaldg import datasets
 from clinicaldg import hparams_registry

@@ -22,6 +22,6 @@ singularity exec --nv \
 	/bin/bash -c -c "
 source /ext3/env.sh
 conda activate thesis
-cd /scratch/rc4499/thesis/ood-generalization/ClinicalDG
+cd /scratch/rc4499/thesis/ood-generalization
 python clinicaldg/scripts/emb_train.py --row_idx $SLURM_ARRAY_TASK_ID
 "

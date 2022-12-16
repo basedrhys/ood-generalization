@@ -21,6 +21,6 @@ singularity exec --nv \
 	/bin/bash -c "
 source /ext3/env.sh
 conda activate thesis
-cd /scratch/rc4499/thesis/ood-generalization/ClinicalDG
+cd /scratch/rc4499/thesis/ood-generalization
 bash_scripts/my_cxr.sh dftestss --test
 "
