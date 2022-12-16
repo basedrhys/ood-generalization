@@ -1,6 +1,6 @@
 # The Effect of Image Size and Model Capacity on Chest X-Ray Disease Classification Performance
 
-This is the code for [Paper name](#).
+<!-- This is the code for [Paper name](#). -->
 
 ## Acknowledgements
 
@@ -33,5 +33,14 @@ A detailed list of `hparams` available for each dataset can be found [here](hpar
 
 We provide the bash scripts used for our main experiments in the `bash_scripts` directory. You will likely need to customize them, along with the launcher, to your compute environment.
 
-## License
-This source code is released under the MIT license, included [here](LICENSE).
+## W+B Sweeps
+
+This codebase heavily utilises [W+B](https://wandb.ai/site) to run experiments, both for tracking and recording results, and running experiments via the [Sweeps](https://docs.wandb.ai/guides/sweeps) feature (along side Slurm arrays).
+
+The process for this is as follows:
+
+* Define your sweep hyperparameters in a `.yaml` file (e.g., [this YAML file for image size experimentation](./sweeps/4_image_model_size.yaml))
+* Start the sweep: `wandb sweep <yaml filename>`
+* Create your Slurm array script (e.g., [sweep.sbatch](./sweeps/sweep.sbatch)) -- the key parameter is the `--array=` feature, which should be set to `0-<num parameter configs>`
+* Start the Slurm array job: `sbatch sweeps/sweep.sbatch`
+* Sit back and watch GPUs go brrrr
