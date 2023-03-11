@@ -293,7 +293,7 @@ def balance_proportion(orig_df, new_prop, column, resample_method="over", seed=0
         # Resample the diseased class
         new_num_diseased = calc_rs_n_c0(num_normal, new_prop)
         print(f"Resampling diseased samples from {num_diseased} to {new_num_diseased}")
-        df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=0)
+        df_diseased_rs = df_diseased.sample(new_num_diseased, replace=True, random_state=seed)
         resampled_df = pd.concat([df_normal, df_diseased_rs])
              
     return resampled_df
@@ -362,6 +362,7 @@ class CXRBase():
             test_df = self.dfs[self.TEST_ENV]["train"] # use the train split as its larger and so less variable with seeds
             print("Label balancing... args.label_shift:",args.label_shift)
 
+            # Calculate what the target P(Y) is for each training environment
             if args.balance_method != 'label_notest':
                 if args.label_shift is None or args.label_shift == -1:
                     target_prop = get_prop(test_df, column=args.binary_label)

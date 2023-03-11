@@ -166,7 +166,7 @@ if __name__ == "__main__":
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="2d_nurd_fix", 
+                job_type="3c_label_balance_test", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)

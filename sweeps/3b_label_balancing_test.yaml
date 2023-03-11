@@ -1,0 +1,29 @@
+program: /scratch/rc4499/thesis/ood-generalization/clinicaldg/scripts/train.py
+project: ood-generalization
+entity: basedrhys
+method: grid
+name: "3c - Label Balancing Pneumonia Test"
+parameters:
+  train_envs:
+    values: ["NIH"]
+    # values: ["MIMIC", "CXP"]
+  test_env:
+    values: ["MIMIC", "CXP", "NIH", "PAD"]
+  balance_resample:
+    # values: [null, "label,under", "label,over", "label+size,under", "label+size,over"]
+    values: ["label,under"]
+  binary_label:
+    values: ["Pneumonia"]
+    # values: ['Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+  seed:
+    values: [0, 1, 2, 3]
+  # label_shift:
+  #   values: [-1, 0.1, 0.2, 0.5, 0.8, 0.9]
+  # dataset_reduction_factor:
+    # values: [1, 5, 10]
+command:
+  - /scratch/rc4499/envs_dirs/thesis/bin/python
+  - ${program}
+  - "--max_steps"
+  - "20001"
+  - ${args}
