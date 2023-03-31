@@ -31,3 +31,6 @@ IMAGENET_STD = [0.229, 0.224, 0.225]          # Std of ImageNet dataset (used fo
 
 LABEL_SHIFTS = [0.1, 0.2, 0.5, 0.8, 0.9]
 NURD_RATIOS = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+HOSPITALS = ['CXP', 'MIMIC', 'NIH', 'PAD']
+NUM_HOSPITALS = len(HOSPITALS)

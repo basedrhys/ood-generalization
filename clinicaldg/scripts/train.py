@@ -31,9 +31,14 @@ from clinicaldg import algorithms
 from clinicaldg.lib import misc
 from clinicaldg.lib.fast_data_loader import InfiniteDataLoader, FastDataLoader
 from clinicaldg.utils import EarlyStopping, has_checkpoint, load_checkpoint, save_checkpoint, get_wandb_name
-from clinicaldg.cxr.Constants import LABEL_SHIFTS, NURD_RATIOS
+from clinicaldg.cxr.Constants import LABEL_SHIFTS, NURD_RATIOS, HOSPITALS
 
 torch.multiprocessing.set_sharing_strategy('file_system')
+
+def unpack_column(col):
+    vals = [list(col[i]) for i in range(col.shape[0])]
+
+    return np.array(vals)
 
 def run_testing(dataset, split_name, environments, args, algorithm, device, bs, thresh):
     print(f"TEST ({datetime.now()}): Running on split: {split_name} for environments: {environments}")
@@ -49,6 +54,18 @@ def run_testing(dataset, split_name, environments, args, algorithm, device, bs, 
     for name, loader in test_loader.items():
         eval_metrics, meta_df = dataset.eval_metrics(algorithm, loader, name, weights = None, device = device, thresh = thresh)
         final_results.update(eval_metrics)
+
+        if args.dataset == "CXRHospital":
+            targets = unpack_column(meta_df['targets'].to_numpy())
+            preds = unpack_column(meta_df['preds'].to_numpy())
+
+            print(f"NUM TEST INSTANCES:", targets.shape[0])
+
+            wandb.log({f"{name}_conf_mat": wandb.plot.confusion_matrix(
+                preds=preds.argmax(axis=1),
+                y_true=targets.argmax(axis=1),
+                class_names=HOSPITALS
+            )})
         
         meta_df.to_csv(f"{args.output_dir}/{split_name}-{name}.csv")
 
@@ -66,6 +83,9 @@ def post_parse_args(args):
 
     print("Finished fixing command line args")
     print(vars(args))
+    if args.dataset == "CXRHospital":
+        return args
+    
     # Apply train_envs arg
     assert (args.train_envs is None or args.train_env_0 is None), "One of train_envs / train_env_0 must be null"
     if "train_envs" in args and args.train_envs is not None:
@@ -133,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument('--label_shift', type=float)
     parser.add_argument('--dataset_reduction_factor', type=int)
     parser.add_argument('--model_type', type=str, default="densenet121")
+    parser.add_argument("--crop_method", default=None, type=str, choices=[None, "resize", "pad"])
 
     parser.add_argument('--hparams', type=str,
         help='JSON-serialized hparams dict')
@@ -166,7 +187,7 @@ if __name__ == "__main__":
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="3c_label_balance_test", 
+                job_type="5_hospital_prediction", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)
@@ -231,12 +252,13 @@ if __name__ == "__main__":
         
     ds_class = vars(datasets)[args.dataset]  
     
-    # Parse the train/val/test environments from the args
-    ds_class.TRAIN_ENVS = [args.train_env_0]
-    if args.train_env_1 is not None:
-        ds_class.TRAIN_ENVS.append(args.train_env_1)
-    ds_class.VAL_ENV = args.val_env
-    ds_class.TEST_ENV = args.test_env
+    if args.dataset != "CXRHospital":
+        # Parse the train/val/test environments from the args
+        ds_class.TRAIN_ENVS = [args.train_env_0]
+        if args.train_env_1 is not None:
+            ds_class.TRAIN_ENVS.append(args.train_env_1)
+        ds_class.VAL_ENV = args.val_env
+        ds_class.TEST_ENV = args.test_env
 
     if args.dataset in vars(datasets):
         dataset = ds_class(hparams, args)
@@ -303,7 +325,7 @@ if __name__ == "__main__":
         batch_size=hparams['batch_size']*4,
         num_workers=dataset.N_WORKERS)
 
-    feature_size_override = get_feature_size_override(args.img_size, args.model_type)
+    feature_size_override = get_feature_size_override(args.img_size, args.model_type) if args.dataset != "CXRHospital" else None
 
     algorithm_class = algorithms.get_algorithm_class(args.algorithm)
     algorithm = algorithm_class(dataset.input_shape, dataset.num_classes,
@@ -429,7 +451,7 @@ if __name__ == "__main__":
         bs=hparams["batch_size"]*4,
         thresh=opt_thresh)
 
-    if args.balance_method != "NURD":
+    if args.balance_method != "NURD" and args.dataset != "CXRHospital":
         for shift in LABEL_SHIFTS:
             save_dict[f'test_{shift}'] = run_testing(
                 dataset=dataset,

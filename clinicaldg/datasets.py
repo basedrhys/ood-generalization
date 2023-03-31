@@ -48,11 +48,14 @@ def torch_bernoulli(p, size):
 def torch_xor(a, b):
     return (a-b).abs() # Assumes both inputs are either 0 or 1   
 
-def compute_opt_thresh(target, pred):
+def compute_opt_thresh(target, pred, disease_prediction):
     opt_thres = 0
     opt_f1 = 0
     for i in np.arange(0.05, 0.9, 0.01):
-        f1 = f1_score(target, pred >= i, average="macro")
+        if disease_prediction:
+            f1 = f1_score(target, pred >= i, average="macro")
+        else:
+            f1 = accuracy_score(target, pred >= i)
         if f1 >= opt_f1:
             opt_thres = i
             opt_f1 = f1
@@ -68,13 +71,13 @@ def tnr(target, pred):
     
     return TN/(TN + FP) if (TN + FP) > 0 else 0
 
-def binary_clf_metrics(preds, targets, grp, env_name, orig_thresh=None, mask = None):
+def clf_metrics(preds, targets, grp, env_name, orig_thresh=None, mask = None, disease_prediction=True):
     if mask is not None:
         preds = preds[mask]
         targets = targets[mask]
         grp = grp[mask]
 
-    opt_thresh = compute_opt_thresh(targets, preds)
+    opt_thresh = compute_opt_thresh(targets, preds, disease_prediction)
     if orig_thresh is not None:
         actual_thresh = orig_thresh
     else:
@@ -82,29 +85,39 @@ def binary_clf_metrics(preds, targets, grp, env_name, orig_thresh=None, mask = N
     print(f"INFO: Optimal threshold: {opt_thresh}, using {actual_thresh}")
 
     preds_rounded_opt = (preds >= actual_thresh)
-    tpr_gap_opt = recall_score(targets[grp], preds_rounded_opt[grp], zero_division = 0) - recall_score(targets[~grp], preds_rounded_opt[~grp], zero_division = 0)
-    tnr_gap_opt = tnr(targets[grp], preds_rounded_opt[grp]) - tnr(targets[~grp], preds_rounded_opt[~grp])
-    parity_gap_opt = (preds_rounded_opt[grp].sum() / grp.sum()) - (preds_rounded_opt[~grp].sum() / (~grp).sum())    
-    phi_opt = matthews_corrcoef(preds_rounded_opt, grp)
+    # tpr_gap_opt = recall_score(targets[grp], preds_rounded_opt[grp], zero_division = 0) - recall_score(targets[~grp], preds_rounded_opt[~grp], zero_division = 0)
+    # tnr_gap_opt = tnr(targets[grp], preds_rounded_opt[grp]) - tnr(targets[~grp], preds_rounded_opt[~grp])
+    # parity_gap_opt = (preds_rounded_opt[grp].sum() / grp.sum()) - (preds_rounded_opt[~grp].sum() / (~grp).sum())    
+    # phi_opt = matthews_corrcoef(preds_rounded_opt, grp)
     
-    if len(np.unique(targets)) == 1:
-        auroc = -1
+    if disease_prediction:
+        if len(np.unique(targets)) == 1:
+            auroc = -1
+        else:
+            auroc = roc_auc_score(targets, preds)
+        
+        return {env_name + '_roc': auroc,
+                env_name + '_acc': accuracy_score(targets, preds_rounded_opt),
+                env_name + '_prec': precision_score(targets, preds_rounded_opt, average="macro"),
+                env_name + '_rec': recall_score(targets, preds_rounded_opt, average="macro"),
+                env_name + '_f1': f1_score(targets, preds_rounded_opt, average="macro"),
+                env_name + '_prec_bin': precision_score(targets, preds_rounded_opt, average="binary"),
+                env_name + '_rec_bin': recall_score(targets, preds_rounded_opt, average="binary"),
+                env_name + '_f1_bin': f1_score(targets, preds_rounded_opt, average="binary"),
+                env_name + '_mcc': matthews_corrcoef(preds_rounded_opt, grp),
+                env_name + '_opt_thresh': opt_thresh,
+                env_name + '_orig_thresh': orig_thresh,
+                env_name + '_actual_thresh': actual_thresh,
+            }
     else:
-        auroc = roc_auc_score(targets, preds)
-    
-    return {env_name + '_roc': auroc,
+        # Hospital prediction
+        return {
             env_name + '_acc': accuracy_score(targets, preds_rounded_opt),
-            env_name + '_prec': precision_score(targets, preds_rounded_opt, average="macro"),
-            env_name + '_rec': recall_score(targets, preds_rounded_opt, average="macro"),
-            env_name + '_f1': f1_score(targets, preds_rounded_opt, average="macro"),
-            env_name + '_prec_bin': precision_score(targets, preds_rounded_opt, average="binary"),
-            env_name + '_rec_bin': recall_score(targets, preds_rounded_opt, average="binary"),
-            env_name + '_f1_bin': f1_score(targets, preds_rounded_opt, average="binary"),
-            env_name + '_mcc': phi_opt,
             env_name + '_opt_thresh': opt_thresh,
             env_name + '_orig_thresh': orig_thresh,
             env_name + '_actual_thresh': actual_thresh,
-           }
+        }
+
 
 # env_name + '_tpr_gap': tpr_gap_opt,
 # env_name + '_tnr_gap': tnr_gap_opt,
@@ -151,7 +164,7 @@ class eICUBase():
     def eval_metrics(self, algorithm, loader, env_name, weights, device):
         preds, targets, genders = self.predict_on_set(algorithm, loader, device)
         male = genders == 1
-        return binary_clf_metrics(preds, targets, male, env_name) # male - female
+        return clf_metrics(preds, targets, male, env_name) # male - female
             
     def get_torch_dataset(self, envs, dset):
         return self.d.get_torch_dataset(envs, dset)
@@ -330,6 +343,7 @@ class CXRBase():
 
         # loads data with random splits
         self.dfs = {}
+        all_dfs = []
         for data_env in cxrConstants.df_paths:
             func = cxrProcess.get_process_func(data_env)
             df_env = func(pd.read_csv(cxrConstants.df_paths[data_env]), only_frontal = True)
@@ -337,12 +351,53 @@ class CXRBase():
             df_env["All"] = df_env.apply(is_diseased, axis=1)
             df_env = df_env[df_env["img_exists"]]
             df_env[args.binary_label] = df_env[args.binary_label].fillna(0).astype(int)
-            train_df, valid_df, test_df = cxrProcess.split(df_env)
             self.dfs[data_env] = {
+                "all_splits": df_env
+            }
+            all_dfs.append(df_env)
+        
+        # Create the "combined" environment
+        comb_df = pd.concat(all_dfs)
+        print(comb_df.env.value_counts())
+        # First balance the hospitals
+        min_size = comb_df.env.value_counts().min()
+
+        print("Balancing hospitals to size: ", min_size)
+
+        comb_df = comb_df.groupby("env").sample(min_size)
+
+        print(comb_df.env.value_counts())
+    
+            # # Undersample all splits to this size
+            # for env in self.TRAIN_ENVS:
+            #     print(f"Undersampling {env} to size {min_size}")
+            #     tmp_df = self.dfs[env][split]
+            #     tmp_df = tmp_df.sample(min_size, random_state=0)
+            #     self.dfs[env][split] = tmp_df
+
+        self.dfs["COMBINED"] = {
+            "all_splits": comb_df
+        }
+
+        # Split the environments
+        if args.dataset != "CXRHospital":
+            for data_env in cxrConstants.df_paths:
+                df_env = self.dfs[data_env]["all_splits"]
+                train_df, valid_df, test_df = cxrProcess.split(df_env)
+                self.dfs[data_env].update({
+                    'train': train_df,
+                    'val': valid_df,
+                    'test': test_df,
+                })
+        else:
+            data_env = "COMBINED"
+            df_env = self.dfs[data_env]["all_splits"]
+            train_df, valid_df, test_df = cxrProcess.split(df_env)
+            self.dfs[data_env].update({
                 'train': train_df,
                 'val': valid_df,
                 'test': test_df,
-            }
+            })
 
         # Log the original length and proportion of the training environments
         self.log_dfs(is_original=True, binary_label=args.binary_label)
@@ -394,7 +449,8 @@ class CXRBase():
             print()
 
         # Create auxiliary test sets
-        self.create_nurd_test_sets(args.binary_label)
+        if args.dataset != "CXRHospital":
+            self.create_nurd_test_sets(args.binary_label)
 
         if args.balance_method == "NURD":
             assert len(self.TRAIN_ENVS) == 2, "NURD imbalancing can only be applied with 2 training environments"
@@ -680,12 +736,39 @@ class CXRBinary(CXRBase):
         if emb_only:
             return meta_df
         else:
-            return binary_clf_metrics(preds, targets, male, env_name, orig_thresh=thresh), meta_df
+            return clf_metrics(preds, targets, male, env_name, orig_thresh=thresh), meta_df
     
     def get_torch_dataset(self, envs, dset, args):
         augment = 0 if dset in ['val', 'test'] else self.hparams['cxr_augment']    
         return cxrData.get_dataset(self.dfs, img_size=args.img_size, envs = envs, split = dset, imagenet_norm = True, only_frontal = True, augment = augment, cache = self.use_cache ,
                                   subset_label = args.binary_label)
+    
+
+class CXRHospital(CXRBase):
+    """
+    Used for hospital prediction task
+    """
+    ENVIRONMENTS = ['COMBINED']
+    ES_METRIC = 'acc'
+    input_shape = None
+    ES_PATIENCE = 10 #  * checkpoint_freq steps
+    TRAIN_ENVS = ['COMBINED']
+    VAL_ENV = 'COMBINED'
+    TEST_ENV = 'COMBINED'
+    num_classes = 4
+
+    def eval_metrics(self, algorithm, loader, env_name, weights, device, thresh, emb_only=False):
+        preds, targets, genders, meta_df = self.predict_on_set(algorithm, loader, device, emb_only)
+        male = genders == 'M'
+        if emb_only:
+            return meta_df
+        else:
+            return clf_metrics(preds, targets, male, env_name, orig_thresh=thresh, disease_prediction=False), meta_df
+    
+    def get_torch_dataset(self, envs, dset, args):
+        augment = 0 if dset in ['val', 'test'] else self.hparams['cxr_augment']    
+        return cxrData.get_dataset(self.dfs, img_size=args.img_size, envs = envs, split = dset, imagenet_norm = True, only_frontal = True, augment = augment, cache = self.use_cache ,
+                                  subset_label = "env", crop_method=args.crop_method)
        
 
 class CXRSubsampleUnobs(CXRBinary):

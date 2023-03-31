@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=image_size
-#SBATCH --output=./out/%j-3b_label_balance_fix.out
-#SBATCH --array=0-16%25
+#SBATCH --output=./out/%j-5_hospital_prediction.out
+#SBATCH --array=0-18%25
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48GB
 #SBATCH --time=5:30:00
@@ -23,5 +23,5 @@ singularity exec --nv \
 source /ext3/env.sh
 conda activate thesis
 cd /scratch/rc4499/thesis/ood-generalization
-wandb agent --count 1 basedrhys/ood-generalization/azww6r8l
+wandb agent --count 1 basedrhys/ood-generalization/6e8d9t28
 "

@@ -8,9 +8,42 @@ from torchvision import transforms
 import pickle
 from pathlib import Path
 from torch.utils.data import Dataset, ConcatDataset
+from torch.nn.functional import one_hot
 from time import sleep
 
-def get_dataset(dfs_all, img_size, envs = [], split = None, only_frontal = True, imagenet_norm = True, augment = 0, cache = False, subset_label = None):
+from clinicaldg.cxr.Constants import HOSPITALS, NUM_HOSPITALS
+
+from torchvision import datasets, transforms
+
+import torchvision.transforms.functional as TF
+import torch
+
+class CenterCropAndPad:
+    """
+    A PyTorch transformation that takes a center crop of size crop_size from an image and pads the image back to size
+    pad_size, with an (crop_size, crop_size) square in the center of the original image, and all zeroes around.
+    """
+    def __init__(self, crop_size, pad_size):
+        self.crop_size = crop_size
+        self.pad_size = pad_size
+
+    def __call__(self, img):
+        # Take a center crop of size crop_size from the image
+        cropped_img = TF.center_crop(img, self.crop_size)
+
+        # Convert the cropped image to a Tensor
+        cropped_tensor = TF.to_tensor(cropped_img)
+
+        # Pad the cropped tensor with zeroes to size pad_size
+        pad_h = (self.pad_size - self.crop_size) // 2
+        pad_w = (self.pad_size - self.crop_size) // 2
+        padded_tensor = torch.nn.functional.pad(cropped_tensor, (pad_w, pad_w, pad_h, pad_h), mode='constant', value=0)
+
+        return padded_tensor
+
+
+
+def get_dataset(dfs_all, img_size, envs = [], split = None, only_frontal = True, imagenet_norm = True, augment = 0, cache = False, subset_label = None, crop_method=None):
       
     if split in ['val', 'test']:
         assert(augment in [0, -1])
@@ -41,7 +74,7 @@ def get_dataset(dfs_all, img_size, envs = [], split = None, only_frontal = True,
             cache_dir = Path(Constants.cache_dir)/ f'{e}/'
             cache_dir.mkdir(parents=True, exist_ok=True)
             datasets.append(AllDatasetsShared(dfs[c], img_size, transform = transforms.Compose(image_transforms)
-                                      , split = split, cache = cache, cache_dir = cache_dir, subset_label = subset_label)) 
+                                      , split = split, cache = cache, cache_dir = cache_dir, subset_label = subset_label, crop_method=crop_method)) 
                 
     if len(datasets) == 0:
         return None
@@ -54,7 +87,7 @@ def get_dataset(dfs_all, img_size, envs = [], split = None, only_frontal = True,
     return ds
 
 class AllDatasetsShared(Dataset):
-    def __init__(self, dataframe, img_size, transform=None, split = None, cache = True, cache_dir = '', subset_label = None):
+    def __init__(self, dataframe, img_size, transform=None, split = None, cache = True, cache_dir = '', subset_label = None, crop_method=None):
         super().__init__()
         self.dataframe = dataframe
         self.dataset_size = self.dataframe.shape[0]
@@ -65,12 +98,25 @@ class AllDatasetsShared(Dataset):
         self.subset_label = subset_label # (str) select one label instead of returning all Constants.take_labels
         self.img_size=img_size
 
-        resize_trnf = [transforms.Resize(size = [self.img_size, self.img_size])]
-        # if self.img_size < 224:
-            # resize_trnf.append(transforms.Resize(size = [256, 256]))
+        assert crop_method in [None, "resize", "pad"]
+
+        if crop_method == "resize":        
+            resize_trnf = [
+                transforms.CenterCrop(size=(self.img_size, self.img_size)),
+                transforms.Resize(size=(224, 224))
+            ]
+        elif crop_method == "pad":
+            # Define a transform that takes a center crop of size crop_size and pads the image back to size pad_size
+            resize_trnf = [
+                CenterCropAndPad(crop_size=self.img_size, pad_size=224),
+                transforms.ToPILImage()
+            ]
+        else:
+            resize_trnf = [transforms.Resize(size = [self.img_size, self.img_size])]
+
         self.resize_trnf = transforms.Compose(resize_trnf)
 
-        print("Built resize transform:", self.resize_trnf)
+        print("Built resize transform:", self.resize_trnf, " with crop method:", crop_method)
 
         print(f"Created dataset with subset label={self.subset_label}, images of size={self.img_size}")
 
@@ -125,20 +171,34 @@ class AllDatasetsShared(Dataset):
                 img = np.concatenate([img, img, img], axis=2) 
 
             img = Image.fromarray(img)
+            img = self.resize_trnf(img)
 
             # pad_len = 224 - self.img_size
             # if pad_len > 0:
             #     side_pad_len = int(pad_len / 2)
             #     tmp_transforms.append(transforms.Pad(side_pad_len))
-            img = self.resize_trnf(img)
-            disease_labels = Constants.take_labels + ["All"]
-            label = torch.FloatTensor(np.zeros(len(disease_labels), dtype=float))
-            for i in range(0, len(disease_labels)):
-                val = self.dataframe[disease_labels[i].strip()].iloc[idx]
-                if not (isinstance(val, int) or isinstance(val, float)):
-                    val = val.astype('float')
-                if (val > 0):
-                    label[i] = val
+
+            # Create the label
+            if self.subset_label != "env":
+                # Apply disease labelling
+                disease_labels = Constants.take_labels + ["All"]
+                label = torch.FloatTensor(np.zeros(len(disease_labels), dtype=float))
+                for i in range(0, len(disease_labels)):
+                    val = self.dataframe[disease_labels[i].strip()].iloc[idx]
+                    if not (isinstance(val, int) or isinstance(val, float)):
+                        val = val.astype('float')
+                    if (val > 0):
+                        label[i] = val
+                
+                # Apply the actual label
+                if self.subset_label:
+                    label = int(label[disease_labels.index(self.subset_label)])
+            else:
+                # We're doing hospital-prediction, so get the hospital label
+                env = item["env"]
+                env_idx = HOSPITALS.index(env)
+                # One-hot encode the integer class
+                label = one_hot(torch.tensor(env_idx), num_classes=NUM_HOSPITALS)
 
             meta = item.to_dict()
             
@@ -147,10 +207,6 @@ class AllDatasetsShared(Dataset):
         
         if self.transform is not None: # apply image augmentations after caching
             img = self.transform(img)
-        
-        # Apply the actual label
-        if self.subset_label:
-            label = int(label[disease_labels.index(self.subset_label)])
         
         return img, label, meta
             

@@ -1,0 +1,22 @@
+program: /scratch/rc4499/thesis/ood-generalization/clinicaldg/scripts/train.py
+project: ood-generalization
+entity: basedrhys
+method: grid
+name: "5 - Hospital Prediction"
+parameters:
+  seed:
+    values: [0]
+  img_size:
+    values: [224, 128, 64, 32, 16, 8, 4, 2, 1]
+  crop_method:
+    values: ["resize", "pad"]
+    # values: ["resize"]
+    
+command:
+  - /scratch/rc4499/envs_dirs/thesis/bin/python
+  - ${program}
+  - "--dataset"
+  - "CXRHospital"
+  - "--hparams"
+  - '{"batch_size": 32}'
+  - ${args}
