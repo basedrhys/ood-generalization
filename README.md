@@ -49,6 +49,7 @@ The process for this is as follows:
 
 The following steps walkthrough the process for loading datasets and applying hospital-label balancing
 
+* Example wrapper script: `sweeps/sweep.sbatch` (this contains paths to the dataset files / loading them via `singularity`)
 * Main entrypoint: `clinicaldg/scripts/train.py`
 * Corresponding W+B `.yaml` file for hospital-label balancing: `sweeps/2d_nurd_fix.yaml`
   * The key parameter is :`--balance_resample "label_notest,under"`, which does label-balancing with no target test hospital (i.e., label balance the two hospitals to each other), via undersampling. `"hospital_label,under"` would be a more appropriate name, in hindsight.
