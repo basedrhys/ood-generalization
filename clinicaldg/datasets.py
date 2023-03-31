@@ -356,16 +356,13 @@ class CXRBase():
             }
             all_dfs.append(df_env)
         
-        # Create the "combined" environment
+        # Create the "combined" environment if we're doing hospital prediction
         comb_df = pd.concat(all_dfs)
         print(comb_df.env.value_counts())
         # First balance the hospitals
         min_size = comb_df.env.value_counts().min()
-
         print("Balancing hospitals to size: ", min_size)
-
         comb_df = comb_df.groupby("env").sample(min_size)
-
         print(comb_df.env.value_counts())
     
             # # Undersample all splits to this size
@@ -432,6 +429,7 @@ class CXRBase():
                 target_prop = max(prop0, prop1)
                 print(f"Target prop: Using the larger of the two training environments ({prop0}, {prop1}): {target_prop}")
 
+            # Then do the actual balancing of training environments
             for i, train_env in enumerate(self.TRAIN_ENVS):
                 train_df = self.dfs[train_env]["train"]
                 val_df = self.dfs[train_env]["val"]
