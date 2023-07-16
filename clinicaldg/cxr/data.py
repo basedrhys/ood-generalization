@@ -51,7 +51,7 @@ def get_dataset(dfs_all, img_size, envs = [], split = None, only_frontal = True,
     if augment == 1: # image augmentations
         image_transforms = [transforms.RandomHorizontalFlip(), 
                             transforms.RandomRotation(10),     
-                            # transforms.RandomResizedCrop(size = img_size, scale = (0.75, 1.0)),
+                            transforms.RandomResizedCrop(size = img_size, scale = (0.75, 1.0)),
                         transforms.ToTensor()]
     elif augment == 0: 
         image_transforms = [transforms.ToTensor()]

@@ -399,14 +399,13 @@ class CXRBase():
         # Log the original length and proportion of the training environments
         self.log_dfs(is_original=True, binary_label=args.binary_label)
 
-        if args.balance_method == "uniform":
-            # Store the original train/val sets in a seperate key for later copying
-            for i, train_env in enumerate(self.TRAIN_ENVS):
-                train_df = self.dfs[train_env]["train"]
-                val_df = self.dfs[train_env]["val"]
+        # Store the original train/val sets in a seperate key for later copying
+        for i, train_env in enumerate(self.TRAIN_ENVS):
+            train_df = self.dfs[train_env]["train"]
+            val_df = self.dfs[train_env]["val"]
 
-                self.dfs[train_env]["train_orig"] = copy.deepcopy(train_df)
-                self.dfs[train_env]["val_orig"] = copy.deepcopy(val_df)
+            self.dfs[train_env]["train_orig"] = copy.deepcopy(train_df)
+            self.dfs[train_env]["val_orig"] = copy.deepcopy(val_df)
 
         if args.balance_method in ["label", "label+size", "uniform", "label_notest"]:
             print("Beginning label balancing")
@@ -492,7 +491,36 @@ class CXRBase():
                 self.dfs[train_env]["train"] = train_df
                 self.dfs[train_env]["val"] = val_df
 
+        # Applies label balancing, but just to the first of the base environments
+        if args.match_single_env:
+            assert len(self.TRAIN_ENVS) == 2
+            base_env = self.TRAIN_ENVS[0]
+            added_env = self.TRAIN_ENVS[1]
+
+            for split in ["train", "val"]:
+                base_split = self.dfs[base_env][split]
+                added_split = self.dfs[added_env][split]
+
+                orig_base_split = self.dfs[base_env][f"{split}_orig"]
+                tmp_comb = pd.concat([base_split, added_split])#.sample(n=target_len, random_state=args.seed)
+
+                target_len = min(len(orig_base_split), len(tmp_comb))
+                print(f"Undersampling {split} to be of total size: {target_len}")
+                tmp_comb = tmp_comb.sample(n=target_len)
+
+                base_split = tmp_comb.query("env == @base_env")
+                added_split = tmp_comb.query("env == @added_env")
+
+                assert len(base_split) + len(added_split) == len(tmp_comb)
+
+                self.dfs[base_env][split] = base_split
+                self.dfs[added_env][split] = added_split
+
         self.create_synthetic_bal_test_sets(args.binary_label, args.seed)
+
+        for i, train_env in enumerate(self.TRAIN_ENVS):
+            del self.dfs[train_env]["train_orig"]
+            del self.dfs[train_env]["val_orig"]
     
         print("\nFINAL CHECK")
         self.log_dfs(is_original=False, binary_label=args.binary_label)

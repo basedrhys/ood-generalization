@@ -144,6 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_env', choices = ['MIMIC', 'CXP', 'NIH', 'PAD'], default="PAD")
 
     parser.add_argument('--balance_method', choices = ['label', 'label+size', 'uniform', 'NURD', 'label_notest'])
+    parser.add_argument('--match_single_env', type=bool, default=False)
     parser.add_argument('--resample_method', choices = ['over', 'under'])
     parser.add_argument('--balance_resample')
     parser.add_argument('--num_instances', type=int)
@@ -187,7 +188,7 @@ if __name__ == "__main__":
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
     wandb.init(project="ood-generalization",
-                job_type="5_hospital_prediction", 
+                job_type="7b_balance_match_1env", 
                 entity="basedrhys", 
                 config=args,
                 name=job_name)

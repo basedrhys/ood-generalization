@@ -78,5 +78,6 @@ def get_wandb_name(args):
     ratio = args.nurd_ratio
     img_size = args.img_size
     crop_method = args.crop_method
+    return f"({train_env_0},{train_env_1})-disease({disease})-bal({balance},{resample})"
     # return f"({train_env_0},{train_env_1})-test({args.test_env})-shift({shift})-bal({balance},{resample})"
-    return f"new-img_size({img_size})-center_crop({crop_method})"
+    # return f"new-img_size({img_size})-center_crop({crop_method})"
