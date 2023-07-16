@@ -1,0 +1,21 @@
+program: /scratch/rc4499/thesis/ood-generalization/clinicaldg/scripts/train.py
+project: ood-generalization
+entity: basedrhys
+method: grid
+name: "6 - All Datasets"
+parameters:
+  seed:
+    values: [1, 2]
+  binary_label:
+    values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+    
+command:
+  - /scratch/rc4499/envs_dirs/thesis/bin/python
+  - ${program}
+  - "--hparams"
+  - '{"batch_size": 64}'
+  - "--algorithm"
+  - "ERMMerged"
+  - "--train_envs"
+  - "MIMIC,CXP,NIH,PAD"
+  - ${args}

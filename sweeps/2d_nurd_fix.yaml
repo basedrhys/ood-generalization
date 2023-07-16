@@ -1,19 +1,22 @@
-program: ../clinicaldg/scripts/train.py
+program: /scratch/rc4499/thesis/ood-generalization/clinicaldg/scripts/train.py
 project: ood-generalization
 entity: basedrhys
 method: grid
 name: "NURD Fix"
 parameters:
   train_envs:
-    values: ["MIMIC,CXP", "MIMIC,NIH", "MIMIC,PAD", "CXP,NIH", "CXP,PAD", "NIH,PAD"]
+    # values: ["MIMIC,CXP", "MIMIC,NIH", "MIMIC,PAD", "CXP,NIH", "CXP,PAD", "NIH,PAD"]
+    values: ["MIMIC,CXP"]
   test_env:
     values: ["MIMIC"]
   balance_resample:
     values: ["label_notest,under"]
   binary_label:
-    values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+    # values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+    values: ["Pneumonia"]
   seed:
-    values: [0]
+    # values: [1, 2]
+    values: [1]
   
 command:
   - /scratch/rc4499/envs_dirs/thesis/bin/python

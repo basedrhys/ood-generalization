@@ -1,0 +1,36 @@
+program: /scratch/rc4499/thesis/ood-generalization/clinicaldg/scripts/train.py
+project: ood-generalization
+entity: basedrhys
+method: grid
+name: "7a/b - Combined Datasets, Match 1 ENV"
+parameters:
+  binary_label:
+    values: ["Pneumonia", "All", "Cardiomegaly", "Edema",  "Effusion", 'Atelectasis', 'Pneumothorax', 'Consolidation', "No Finding"]
+  train_envs:
+    values: ["MIMIC,CXP", 
+            "CXP,MIMIC", 
+            "MIMIC,NIH", 
+            "NIH,MIMIC", 
+            "MIMIC,PAD", 
+            "PAD,MIMIC",
+            "CXP,NIH", 
+            "NIH,CXP",
+            "CXP,PAD",
+            "PAD,CXP",
+            "NIH,PAD",
+            "PAD,NIH"]
+  test_env:
+    values: ["MIMIC"]
+  balance_resample:
+    values: ["none", "label_notest,under"]
+  seed:
+    values: [1]
+  match_single_env:
+    values: [True]
+    
+command:
+  - /scratch/rc4499/envs_dirs/thesis/bin/python
+  - ${program}
+  - "--hparams"
+  - '{"batch_size": 32}'
+  - ${args}

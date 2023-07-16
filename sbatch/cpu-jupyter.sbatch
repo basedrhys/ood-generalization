@@ -5,7 +5,7 @@
 #SBATCH --output=./out/cpu-jupyter_%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=48GB
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 
 echo "This script should be run from the top-level of the ood-generalization repo"
 
