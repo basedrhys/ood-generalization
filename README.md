@@ -1,8 +1,10 @@
-# Code for the paper "When More is Less: Incorporating Additional Datasets Can Hurt Performance By Introducing Spurious Correlations"
+# When More is Less: Incorporating Additional Datasets Can Hurt Performance By Introducing Spurious Correlations
 
-This is the code for the paper _"When More is Less: Incorporating Additional Datasets Can Hurt Performance By Introducing Spurious Correlations"_ by [Rhys Compton](https://www.rhyscompton.co.nz), [Lily Zhang](https://lhz1029.github.io), [Aahlad Puli](https://aahladmanas.github.io), and [Rajesh Ranganath](https://cims.nyu.edu/~rajeshr/)
+Code for the paper _"When More is Less: Incorporating Additional Datasets Can Hurt Performance By Introducing Spurious Correlations"_ by [Rhys Compton](https://www.rhyscompton.co.nz), [Lily Zhang](https://lhz1029.github.io), [Aahlad Puli](https://aahladmanas.github.io), and [Rajesh Ranganath](https://cims.nyu.edu/~rajeshr/)
 
 [ArXiv Preprint](https://arxiv.org/abs/2308.04431)
+
+![High Level Overview](img/high_level_overview.png)
 
 ## Acknowledgements
 
